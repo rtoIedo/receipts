@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Receipts">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Receipt Capture</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --card: #0f3460;
+      --accent: #e94560;
+      --accent2: #53c0f0;
+      --text: #eaeaea;
+      --text-muted: #8899aa;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Layout ── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bottom);
+    }
+
+    /* ── Install Banner ── */
+    #install-banner {
+      display: none;
+      background: var(--card);
+      padding: 10px 16px;
+      font-size: 13px;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid rgba(83,192,240,.25);
+    }
+    #install-banner.visible { display: flex; }
+    #install-banner span { flex: 1; line-height: 1.4; }
+    #install-banner button {
+      background: none; border: none; color: var(--accent2);
+      font-size: 20px; cursor: pointer; padding: 0 4px;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
+    #receipt-count {
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 10px;
+      padding: 2px 8px;
+      min-width: 24px;
+      text-align: center;
+    }
+
+    /* ── Tab bar ── */
+    nav {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      flex-shrink: 0;
+    }
+    nav button {
+      flex: 1;
+      padding: 12px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color .2s, border-color .2s;
+    }
+    nav button.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+
+    /* ── Panels ── */
+    .panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .panel.active { display: flex; }
+
+    /* ── Camera Panel ── */
+    #camera-panel { position: relative; background: #000; }
+
+    #video-container {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Viewfinder overlay */
+    #viewfinder {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .vf-corner {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: rgba(255,255,255,.85);
+      border-style: solid;
+    }
+    .vf-corner.tl { top: 15%; left: 8%; border-width: 3px 0 0 3px; border-radius: 3px 0 0 0; }
+    .vf-corner.tr { top: 15%; right: 8%; border-width: 3px 3px 0 0; border-radius: 0 3px 0 0; }
+    .vf-corner.bl { bottom: 15%; left: 8%; border-width: 0 0 3px 3px; border-radius: 0 0 0 3px; }
+    .vf-corner.br { bottom: 15%; right: 8%; border-width: 0 3px 3px 0; border-radius: 0 0 3px 0; }
+
+    /* Flash */
+    #flash {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .05s;
+    }
+    #flash.flash { opacity: 1; }
+
+    /* Camera controls bar */
+    #camera-controls {
+      background: rgba(0,0,0,.75);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    #capture-btn {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      border: 4px solid #fff;
+      background: rgba(255,255,255,.15);
+      cursor: pointer;
+      position: relative;
+      transition: transform .1s;
+    }
+    #capture-btn:active { transform: scale(.93); }
+    #capture-btn::after {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      background: #fff;
+    }
+
+    #flip-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.5);
+      background: rgba(255,255,255,.1);
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ctrl-placeholder { width: 44px; }
+
+    /* No-camera message */
+    #no-camera {
+      display: none;
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      text-align: center;
+      padding: 24px;
+    }
+    #no-camera.visible { display: flex; }
+    #no-camera .icon { font-size: 48px; }
+    #no-camera p { color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+    #retry-camera {
+      margin-top: 8px;
+      padding: 10px 24px;
+      background: var(--accent2);
+      color: #000;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* ── Preview Modal ── */
+    #preview-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.85);
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: 16px;
+    }
+    #preview-modal.visible { display: flex; }
+
+    #preview-img {
+      max-width: 100%;
+      max-height: 55vh;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    #preview-modal h2 { font-size: 16px; color: var(--text-muted); }
+
+    #receipt-name-input {
+      width: 100%;
+      max-width: 340px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 15px;
+    }
+    #receipt-name-input:focus { outline: none; border-color: var(--accent2); }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      max-width: 340px;
+    }
+    .modal-actions button {
+      flex: 1;
+      padding: 13px;
+      border-radius: 10px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #save-btn { background: var(--accent2); color: #000; }
+    #discard-btn { background: var(--card); color: var(--text); }
+
+    /* ── Gallery Panel ── */
+    #gallery-panel { overflow-y: auto; }
+
+    #storage-bar-wrap {
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      flex-shrink: 0;
+    }
+    #storage-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+    #storage-track {
+      height: 5px;
+      background: rgba(255,255,255,.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    #storage-fill {
+      height: 100%;
+      background: var(--accent2);
+      border-radius: 3px;
+      transition: width .4s;
+      width: 0%;
+    }
+
+    #gallery-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .receipt-card {
+      background: var(--surface);
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform .15s;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    .receipt-card:active { transform: scale(.97); }
+    .receipt-card img {
+      width: 100%;
+      aspect-ratio: 3/4;
+      object-fit: cover;
+      display: block;
+    }
+    .receipt-card-label {
+      padding: 7px 9px;
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #empty-gallery {
+      display: none;
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      padding: 48px 24px;
+      text-align: center;
+    }
+    #empty-gallery.visible { display: flex; }
+    #empty-gallery .icon { font-size: 52px; }
+    #empty-gallery p { color: var(--text-muted); font-size: 14px; }
+
+    /* ── Detail Modal ── */
+    #detail-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.92);
+      z-index: 100;
+      flex-direction: column;
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bottom);
+    }
+    #detail-modal.visible { display: flex; }
+
+    #detail-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+    #detail-name { font-size: 16px; font-weight: 600; flex: 1; padding-right: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .detail-action-btn {
+      padding: 7px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    #close-detail-btn { background: var(--card); color: var(--text); }
+    #download-btn { background: var(--accent2); color: #000; }
+    #delete-btn { background: var(--accent); color: #fff; }
+
+    #detail-img-wrap {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #detail-img {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    #detail-meta {
+      padding: 12px 20px;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border-top: 1px solid rgba(255,255,255,.07);
+    }
+
+    /* ── Hidden canvas for capture ── */
+    #capture-canvas { display: none; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Install Banner -->
+  <div id="install-banner">
+    <span>📌 Add to Home Screen via Share (⬆) → "Add to Home Screen" to keep your receipts safe.</span>
+    <button id="dismiss-banner" aria-label="Dismiss">✕</button>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <h1>Receipts</h1>
+    <span id="receipt-count">0</span>
+  </header>
+
+  <!-- Tab Bar -->
+  <nav>
+    <button class="tab-btn active" data-panel="camera-panel">📷 Capture</button>
+    <button class="tab-btn" data-panel="gallery-panel">🗂 Gallery</button>
+  </nav>
+
+  <!-- Camera Panel -->
+  <div id="camera-panel" class="panel active">
+    <div id="video-container">
+      <video id="video" autoplay playsinline muted></video>
+      <div id="viewfinder">
+        <div class="vf-corner tl"></div>
+        <div class="vf-corner tr"></div>
+        <div class="vf-corner bl"></div>
+        <div class="vf-corner br"></div>
+      </div>
+      <div id="flash"></div>
+    </div>
+    <div id="no-camera">
+      <div class="icon">📷</div>
+      <p>Camera access is required.<br>Please allow camera access and try again.</p>
+      <button id="retry-camera">Allow Camera</button>
+    </div>
+    <div id="camera-controls">
+      <div class="ctrl-placeholder"></div>
+      <button id="capture-btn" aria-label="Capture receipt"></button>
+      <button id="flip-btn" aria-label="Flip camera">🔄</button>
+    </div>
+  </div>
+
+  <!-- Gallery Panel -->
+  <div id="gallery-panel" class="panel">
+    <div id="storage-bar-wrap">
+      <div id="storage-label">Storage: calculating…</div>
+      <div id="storage-track"><div id="storage-fill"></div></div>
+    </div>
+    <div id="gallery-grid"></div>
+    <div id="empty-gallery">
+      <div class="icon">🧾</div>
+      <p>No receipts yet.<br>Switch to Capture to take your first photo.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Preview Modal -->
+<div id="preview-modal" role="dialog" aria-modal="true" aria-label="Preview receipt">
+  <h2>Save Receipt</h2>
+  <img id="preview-img" alt="Captured receipt preview">
+  <input id="receipt-name-input" type="text" placeholder="Receipt name (optional)" maxlength="80" autocomplete="off">
+  <div class="modal-actions">
+    <button id="discard-btn">Discard</button>
+    <button id="save-btn">Save</button>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div id="detail-modal" role="dialog" aria-modal="true" aria-label="Receipt detail">
+  <div id="detail-toolbar">
+    <span id="detail-name"></span>
+    <button class="detail-action-btn" id="close-detail-btn">Close</button>
+    <button class="detail-action-btn" id="download-btn">Download</button>
+    <button class="detail-action-btn" id="delete-btn">Delete</button>
+  </div>
+  <div id="detail-img-wrap">
+    <img id="detail-img" alt="Receipt detail">
+  </div>
+  <div id="detail-meta" id="detail-meta"></div>
+</div>
+
+<canvas id="capture-canvas"></canvas>
+
+<script>
+// ── IndexedDB ──────────────────────────────────────────────────
+const DB_NAME = 'receipts-db';
+const DB_VERSION = 1;
+const STORE = 'receipts';
+const BUDGET_BYTES = 500 * 1024 * 1024;
+
+let db;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE)) {
+        const store = d.createObjectStore(STORE, { keyPath: 'id' });
+        store.createIndex('ts', 'ts');
+      }
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function dbGetAll() {
+  const tx = db.transaction(STORE, 'readonly');
+  return new Promise((resolve, reject) => {
+    const req = tx.objectStore(STORE).index('ts').getAll();
+    req.onsuccess = e => resolve(e.target.result.reverse());
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function dbPut(record) {
+  const tx = db.transaction(STORE, 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = tx.objectStore(STORE).put(record);
+    req.onsuccess = () => resolve();
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+async function dbDelete(id) {
+  const tx = db.transaction(STORE, 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = tx.objectStore(STORE).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = e => reject(e.target.error);
+  });
+}
+
+// ── Camera ────────────────────────────────────────────────────
+const video = document.getElementById('video');
+const flash = document.getElementById('flash');
+const noCamera = document.getElementById('no-camera');
+const captureCanvas = document.getElementById('capture-canvas');
+const ctx = captureCanvas.getContext('2d');
+
+let facingMode = 'environment';
+let stream = null;
+
+async function startCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  noCamera.classList.remove('visible');
+  video.style.display = 'block';
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 2560 } },
+      audio: false
+    });
+    video.srcObject = stream;
+  } catch (err) {
+    console.error('Camera error:', err);
+    video.style.display = 'none';
+    noCamera.classList.add('visible');
+  }
+}
+
+document.getElementById('flip-btn').addEventListener('click', () => {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  startCamera();
+});
+
+document.getElementById('retry-camera').addEventListener('click', startCamera);
+
+// ── Capture ───────────────────────────────────────────────────
+const previewModal = document.getElementById('preview-modal');
+const previewImg = document.getElementById('preview-img');
+const nameInput = document.getElementById('receipt-name-input');
+let pendingDataURL = null;
+
+document.getElementById('capture-btn').addEventListener('click', () => {
+  if (!stream) return;
+
+  // Flash
+  flash.classList.add('flash');
+  setTimeout(() => flash.classList.remove('flash'), 150);
+
+  // Draw frame to canvas
+  const { videoWidth: w, videoHeight: h } = video;
+  captureCanvas.width = w;
+  captureCanvas.height = h;
+  ctx.drawImage(video, 0, 0, w, h);
+  pendingDataURL = captureCanvas.toDataURL('image/jpeg', 0.88);
+
+  previewImg.src = pendingDataURL;
+  nameInput.value = defaultReceiptName();
+  previewModal.classList.add('visible');
+});
+
+function defaultReceiptName() {
+  const now = new Date();
+  return `Receipt ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+// ── Save / Discard ────────────────────────────────────────────
+document.getElementById('save-btn').addEventListener('click', async () => {
+  if (!pendingDataURL) return;
+  const name = nameInput.value.trim() || defaultReceiptName();
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const ts = Date.now();
+  const sizeBytes = Math.round((pendingDataURL.length * 3) / 4);
+
+  await dbPut({ id, name, ts, dataURL: pendingDataURL, sizeBytes });
+  pendingDataURL = null;
+  previewModal.classList.remove('visible');
+  await refreshGallery();
+  requestPersistentStorage();
+});
+
+document.getElementById('discard-btn').addEventListener('click', () => {
+  pendingDataURL = null;
+  previewModal.classList.remove('visible');
+});
+
+// ── Gallery ───────────────────────────────────────────────────
+const grid = document.getElementById('gallery-grid');
+const emptyGallery = document.getElementById('empty-gallery');
+const receiptCount = document.getElementById('receipt-count');
+const storageLabel = document.getElementById('storage-label');
+const storageFill = document.getElementById('storage-fill');
+
+async function refreshGallery() {
+  const records = await dbGetAll();
+  grid.innerHTML = '';
+  receiptCount.textContent = records.length;
+
+  if (records.length === 0) {
+    emptyGallery.classList.add('visible');
+    updateStorageBar(0);
+    return;
+  }
+  emptyGallery.classList.remove('visible');
+
+  let totalBytes = 0;
+  records.forEach(r => {
+    totalBytes += r.sizeBytes || 0;
+    const card = document.createElement('div');
+    card.className = 'receipt-card';
+    card.innerHTML = `
+      <img src="${r.dataURL}" alt="${escHtml(r.name)}" loading="lazy">
+      <div class="receipt-card-label">${escHtml(r.name)}</div>`;
+    card.addEventListener('click', () => openDetail(r));
+    grid.appendChild(card);
+  });
+  updateStorageBar(totalBytes);
+}
+
+function updateStorageBar(bytes) {
+  const pct = Math.min(100, (bytes / BUDGET_BYTES) * 100).toFixed(1);
+  const used = formatBytes(bytes);
+  storageLabel.textContent = `Storage: ${used} / 500 MB used (${pct}%)`;
+  storageFill.style.width = pct + '%';
+  storageFill.style.background = pct > 80 ? '#e94560' : '#53c0f0';
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  return (b / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ── Detail Modal ──────────────────────────────────────────────
+const detailModal = document.getElementById('detail-modal');
+const detailImg = document.getElementById('detail-img');
+const detailName = document.getElementById('detail-name');
+const detailMeta = document.getElementById('detail-meta');
+let currentRecord = null;
+
+function openDetail(record) {
+  currentRecord = record;
+  detailImg.src = record.dataURL;
+  detailName.textContent = record.name;
+  detailMeta.textContent = `Saved: ${new Date(record.ts).toLocaleString()} · Size: ${formatBytes(record.sizeBytes || 0)}`;
+  detailModal.classList.add('visible');
+}
+
+document.getElementById('close-detail-btn').addEventListener('click', () => {
+  detailModal.classList.remove('visible');
+  currentRecord = null;
+});
+
+document.getElementById('download-btn').addEventListener('click', () => {
+  if (!currentRecord) return;
+  const a = document.createElement('a');
+  a.href = currentRecord.dataURL;
+  a.download = currentRecord.name.replace(/[^a-z0-9 _-]/gi, '_') + '.jpg';
+  a.click();
+});
+
+document.getElementById('delete-btn').addEventListener('click', async () => {
+  if (!currentRecord) return;
+  if (!confirm(`Delete "${currentRecord.name}"?`)) return;
+  await dbDelete(currentRecord.id);
+  detailModal.classList.remove('visible');
+  currentRecord = null;
+  await refreshGallery();
+});
+
+// ── Tabs ──────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.panel).classList.add('active');
+    if (btn.dataset.panel === 'gallery-panel') refreshGallery();
+    if (btn.dataset.panel === 'camera-panel' && !stream) startCamera();
+  });
+});
+
+// ── Install Banner ────────────────────────────────────────────
+function checkInstallBanner() {
+  const isInstalled = window.navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const dismissed = localStorage.getItem('banner-dismissed');
+  if (isIOS && !isInstalled && !dismissed) {
+    document.getElementById('install-banner').classList.add('visible');
+  }
+}
+
+document.getElementById('dismiss-banner').addEventListener('click', () => {
+  document.getElementById('install-banner').classList.remove('visible');
+  localStorage.setItem('banner-dismissed', '1');
+});
+
+// ── Persistent Storage ────────────────────────────────────────
+async function requestPersistentStorage() {
+  if (navigator.storage && navigator.storage.persist) {
+    await navigator.storage.persist();
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function escHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────
+(async () => {
+  db = await openDB();
+  checkInstallBanner();
+  await refreshGallery();
+  startCamera();
+  requestPersistentStorage();
+})();
+</script>
+</body>
+</html>
