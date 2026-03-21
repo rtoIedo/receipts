@@ -6,7 +6,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Receipts">
-  <meta name="theme-color" content="#1a1a2e">
+  <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1C1C1E" media="(prefers-color-scheme: dark)">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Receipt Capture</title>
@@ -19,24 +20,49 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* ── iOS System Colors ── */
     :root {
-      --bg: #1a1a2e;
-      --surface: #16213e;
-      --card: #0f3460;
-      --accent: #e94560;
-      --accent2: #53c0f0;
-      --text: #eaeaea;
-      --text-muted: #8899aa;
-      --safe-top: env(safe-area-inset-top, 0px);
+      --bg:          #F2F2F7;
+      --surface:     #FFFFFF;
+      --surface2:    #F2F2F7;
+      --blue:        #007AFF;
+      --red:         #FF3B30;
+      --green:       #34C759;
+      --text:        #000000;
+      --text2:       rgba(60, 60, 67, 0.85);
+      --text-muted:  #8E8E93;
+      --sep:         rgba(60, 60, 67, 0.29);
+      --sep-opaque:  #C6C6C8;
+      --fill:        rgba(118, 118, 128, 0.12);
+      --fill2:       rgba(118, 118, 128, 0.08);
+      --safe-top:    env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
+      /* Legacy aliases used by existing JS inline-style references */
+      --accent:      #FF3B30;
+      --accent2:     #007AFF;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:         #000000;
+        --surface:    #1C1C1E;
+        --surface2:   #2C2C2E;
+        --text:       #FFFFFF;
+        --text2:      rgba(235, 235, 245, 0.75);
+        --text-muted: #8E8E93;
+        --sep:        rgba(84, 84, 88, 0.65);
+        --sep-opaque: #38383A;
+        --fill:       rgba(118, 118, 128, 0.24);
+        --fill2:      rgba(118, 118, 128, 0.18);
+      }
     }
 
     html, body {
       height: 100%;
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
       overflow: hidden;
+      -webkit-text-size-adjust: 100%;
     }
 
     /* ── Layout ── */
@@ -45,72 +71,95 @@
       flex-direction: column;
       height: 100%;
       padding-top: var(--safe-top);
-      padding-bottom: var(--safe-bottom);
     }
 
     /* ── Install Banner ── */
     #install-banner {
       display: none;
-      background: var(--card);
+      background: var(--surface);
       padding: 10px 16px;
       font-size: 13px;
       align-items: center;
       gap: 10px;
-      border-bottom: 1px solid rgba(83,192,240,.25);
+      border-bottom: 0.5px solid var(--sep);
     }
     #install-banner.visible { display: flex; }
-    #install-banner span { flex: 1; line-height: 1.4; }
+    #install-banner span { flex: 1; line-height: 1.5; color: var(--text2); }
     #install-banner button {
-      background: none; border: none; color: var(--accent2);
-      font-size: 20px; cursor: pointer; padding: 0 4px;
+      background: none; border: none; color: var(--blue);
+      font-size: 20px; cursor: pointer; padding: 0 4px; line-height: 1;
     }
 
-    /* ── Header ── */
+    /* ── Navigation Bar ── */
     header {
-      background: var(--surface);
-      padding: 14px 20px;
+      height: 44px;
+      background: rgba(242, 242, 247, 0.88);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 0.5px solid var(--sep);
+      padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid rgba(255,255,255,.07);
       flex-shrink: 0;
+      position: relative;
+      z-index: 10;
     }
-    header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
+    @media (prefers-color-scheme: dark) {
+      header { background: rgba(28, 28, 30, 0.88); }
+    }
+    header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.4px; }
+    #app-version { font-size: 11px; color: var(--text-muted); margin-right: 6px; }
     #receipt-count {
-      background: var(--accent);
+      background: var(--red);
       color: #fff;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 600;
       border-radius: 10px;
-      padding: 2px 8px;
-      min-width: 24px;
+      padding: 1px 7px;
+      min-width: 22px;
       text-align: center;
+      font-variant-numeric: tabular-nums;
     }
 
-    /* ── Tab bar ── */
+    /* ── Panels ── */
+    .panel { display: none; flex: 1; overflow: hidden; flex-direction: column; min-height: 0; }
+    .panel.active { display: flex; }
+
+    /* ── Bottom Tab Bar ── */
     nav {
       display: flex;
-      background: var(--surface);
-      border-bottom: 1px solid rgba(255,255,255,.07);
+      background: rgba(242, 242, 247, 0.92);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      backdrop-filter: saturate(180%) blur(20px);
+      border-top: 0.5px solid var(--sep);
+      height: calc(49px + var(--safe-bottom));
+      padding-bottom: var(--safe-bottom);
       flex-shrink: 0;
+    }
+    @media (prefers-color-scheme: dark) {
+      nav { background: rgba(28, 28, 30, 0.92); }
     }
     nav button {
       flex: 1;
-      padding: 12px;
       background: none;
       border: none;
       color: var(--text-muted);
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 10px;
+      font-weight: 400;
       cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: color .2s, border-color .2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 6px 0 2px;
+      -webkit-tap-highlight-color: transparent;
+      letter-spacing: 0.1px;
+      transition: color 0.1s;
     }
-    nav button.active { color: var(--accent2); border-bottom-color: var(--accent2); }
-
-    /* ── Panels ── */
-    .panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
-    .panel.active { display: flex; }
+    nav button svg { width: 26px; height: 26px; }
+    nav button.active { color: var(--blue); }
 
     /* ── Camera Panel ── */
     #camera-panel { position: relative; background: #000; }
@@ -123,332 +172,288 @@
       align-items: center;
       justify-content: center;
     }
+    #video { width: 100%; height: 100%; object-fit: cover; }
 
-    #video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    /* Viewfinder overlay */
-    #viewfinder {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-    }
+    /* Viewfinder corners */
+    #viewfinder { position: absolute; inset: 0; pointer-events: none; }
     .vf-corner {
       position: absolute;
-      width: 24px;
-      height: 24px;
-      border-color: rgba(255,255,255,.85);
+      width: 22px; height: 22px;
+      border-color: rgba(255,255,255,.9);
       border-style: solid;
     }
-    .vf-corner.tl { top: 15%; left: 8%; border-width: 3px 0 0 3px; border-radius: 3px 0 0 0; }
-    .vf-corner.tr { top: 15%; right: 8%; border-width: 3px 3px 0 0; border-radius: 0 3px 0 0; }
-    .vf-corner.bl { bottom: 15%; left: 8%; border-width: 0 0 3px 3px; border-radius: 0 0 0 3px; }
-    .vf-corner.br { bottom: 15%; right: 8%; border-width: 0 3px 3px 0; border-radius: 0 0 3px 0; }
+    .vf-corner.tl { top: 14%; left: 8%; border-width: 2.5px 0 0 2.5px; border-radius: 3px 0 0 0; }
+    .vf-corner.tr { top: 14%; right: 8%; border-width: 2.5px 2.5px 0 0; border-radius: 0 3px 0 0; }
+    .vf-corner.bl { bottom: 14%; left: 8%; border-width: 0 0 2.5px 2.5px; border-radius: 0 0 0 3px; }
+    .vf-corner.br { bottom: 14%; right: 8%; border-width: 0 2.5px 2.5px 0; border-radius: 0 0 3px 0; }
 
     /* Flash */
-    #flash {
-      position: absolute;
-      inset: 0;
-      background: #fff;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .05s;
-    }
+    #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .05s; }
     #flash.flash { opacity: 1; }
 
     /* Camera controls bar */
     #camera-controls {
-      background: rgba(0,0,0,.75);
-      padding: 20px 32px;
+      background: rgba(0,0,0,.6);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      padding: 20px 40px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-shrink: 0;
     }
 
+    /* iOS-style shutter button */
     #capture-btn {
-      width: 68px;
-      height: 68px;
+      width: 72px; height: 72px;
       border-radius: 50%;
-      border: 4px solid #fff;
-      background: rgba(255,255,255,.15);
+      border: 3px solid #fff;
+      background: transparent;
       cursor: pointer;
       position: relative;
-      transition: transform .1s;
+      transition: transform .1s, opacity .1s;
+      -webkit-tap-highlight-color: transparent;
     }
-    #capture-btn:active { transform: scale(.93); }
+    #capture-btn:active { transform: scale(.91); opacity: .8; }
     #capture-btn::after {
       content: '';
       position: absolute;
-      inset: 6px;
+      inset: 5px;
       border-radius: 50%;
       background: #fff;
     }
 
     #flip-btn {
-      width: 44px;
-      height: 44px;
+      width: 40px; height: 40px;
       border-radius: 50%;
-      border: 2px solid rgba(255,255,255,.5);
-      background: rgba(255,255,255,.1);
+      border: none;
+      background: rgba(255,255,255,.18);
       color: #fff;
-      font-size: 20px;
+      font-size: 18px;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent;
     }
+    .ctrl-placeholder { width: 40px; }
 
-    .ctrl-placeholder { width: 44px; }
-
-    /* No-camera message */
+    /* No-camera */
     #no-camera {
-      display: none;
-      flex: 1;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 12px;
-      text-align: center;
-      padding: 24px;
+      display: none; flex: 1; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; text-align: center; padding: 32px 24px;
     }
     #no-camera.visible { display: flex; }
-    #no-camera .icon { font-size: 48px; }
-    #no-camera p { color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+    #no-camera .icon { font-size: 52px; }
+    #no-camera p { color: var(--text-muted); font-size: 15px; line-height: 1.6; }
     #retry-camera {
-      margin-top: 8px;
-      padding: 10px 24px;
-      background: var(--accent2);
-      color: #000;
-      border: none;
-      border-radius: 20px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
+      margin-top: 8px; padding: 12px 28px;
+      background: var(--blue); color: #fff;
+      border: none; border-radius: 14px;
+      font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
     }
 
-    /* ── Preview Modal ── */
+    /* ── Preview Modal — iOS bottom sheet ── */
     #preview-modal {
       display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.85);
-      z-index: 100;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      gap: 16px;
+      position: fixed; inset: 0;
+      z-index: 200;
+      align-items: flex-end;
     }
     #preview-modal.visible { display: flex; }
-
-    #preview-img {
-      max-width: 100%;
-      max-height: 55vh;
-      border-radius: 8px;
-      object-fit: contain;
+    #preview-modal::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,.4);
     }
 
-    #preview-modal h2 { font-size: 16px; color: var(--text-muted); }
-
-    #receipt-name-input {
-      width: 100%;
-      max-width: 340px;
-      padding: 12px 16px;
+    #preview-sheet {
+      position: relative;
       background: var(--surface);
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 10px;
-      color: var(--text);
-      font-size: 15px;
-    }
-    #receipt-name-input:focus { outline: none; border-color: var(--accent2); }
-
-    .modal-actions {
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      padding: 0 20px;
+      padding-bottom: calc(20px + var(--safe-bottom));
       display: flex;
-      gap: 12px;
-      width: 100%;
-      max-width: 340px;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      max-height: 92vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      animation: sheetUp 0.32s cubic-bezier(0.32, 0.72, 0, 1);
     }
-    .modal-actions button {
-      flex: 1;
-      padding: 13px;
-      border-radius: 10px;
-      border: none;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
+    @keyframes sheetUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
     }
-    #save-btn { background: var(--accent2); color: #000; }
-    #discard-btn { background: var(--card); color: var(--text); }
 
-    /* ── Gallery Panel ── */
-    #gallery-panel { overflow-y: auto; }
-
-    #storage-bar-wrap {
-      padding: 12px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid rgba(255,255,255,.07);
+    .sheet-handle {
+      width: 36px; height: 5px;
+      background: var(--fill);
+      border-radius: 3px;
+      margin: 12px 0 2px;
       flex-shrink: 0;
     }
-    #storage-label {
-      font-size: 12px;
+
+    #preview-modal h2 {
+      font-size: 17px; font-weight: 600;
+      letter-spacing: -0.3px; color: var(--text);
+    }
+
+    #preview-img {
+      width: 100%; max-height: 42vh;
+      border-radius: 12px;
+      object-fit: contain;
+      background: var(--surface2);
+    }
+
+    /* ── Auto-crop UI ── */
+    #crop-status {
+      font-size: 13px; color: var(--text-muted);
+      min-height: 16px; text-align: center;
+    }
+    #crop-status.found { color: var(--green); }
+
+    /* iOS segmented control */
+    #crop-toggle {
+      display: none;
+      background: var(--fill);
+      border-radius: 9px;
+      padding: 2px;
+      width: 100%;
+    }
+    .crop-opt {
+      flex: 1; padding: 7px 12px;
+      border: none; border-radius: 7px;
+      background: transparent;
       color: var(--text-muted);
-      margin-bottom: 5px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; font-family: inherit;
+      transition: background .15s, color .15s, box-shadow .15s;
+      -webkit-tap-highlight-color: transparent;
     }
-    #storage-track {
-      height: 5px;
-      background: rgba(255,255,255,.1);
-      border-radius: 3px;
-      overflow: hidden;
+    .crop-opt.active {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      box-shadow: 0 1px 4px rgba(0,0,0,.12), 0 0.5px 1px rgba(0,0,0,.08);
     }
-    #storage-fill {
-      height: 100%;
-      background: var(--accent2);
-      border-radius: 3px;
-      transition: width .4s;
-      width: 0%;
+
+    #receipt-name-input {
+      width: 100%; padding: 11px 14px;
+      background: var(--fill2);
+      border: none; border-radius: 10px;
+      color: var(--text); font-size: 16px; font-family: inherit;
     }
+    #receipt-name-input::placeholder { color: var(--text-muted); }
+    #receipt-name-input:focus { outline: none; }
+
+    .modal-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+    .modal-actions button {
+      width: 100%; padding: 15px;
+      border-radius: 14px; border: none;
+      font-size: 17px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity .12s;
+    }
+    .modal-actions button:active { opacity: .72; }
+    #save-btn    { background: var(--blue); color: #fff; }
+    #discard-btn { background: var(--fill); color: var(--red); }
+
+    /* ── Gallery Panel ── */
+    #gallery-panel { overflow-y: auto; background: var(--bg); -webkit-overflow-scrolling: touch; }
+
+    #storage-bar-wrap {
+      padding: 10px 16px 12px;
+      background: var(--surface);
+      border-bottom: 0.5px solid var(--sep);
+      flex-shrink: 0;
+    }
+    #storage-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+    #storage-track { height: 4px; background: var(--fill); border-radius: 2px; overflow: hidden; }
+    #storage-fill  { height: 100%; background: var(--blue); border-radius: 2px; transition: width .4s, background .4s; width: 0%; }
 
     #gallery-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      padding: 12px;
+      gap: 1px;
+      background: var(--sep-opaque);
     }
-
     .receipt-card {
       background: var(--surface);
-      border-radius: 10px;
-      overflow: hidden;
-      cursor: pointer;
-      transition: transform .15s;
-      border: 1px solid rgba(255,255,255,.06);
+      overflow: hidden; cursor: pointer;
+      transition: opacity .12s;
+      -webkit-tap-highlight-color: transparent;
     }
-    .receipt-card:active { transform: scale(.97); }
-    .receipt-card img {
-      width: 100%;
-      aspect-ratio: 3/4;
-      object-fit: cover;
-      display: block;
-    }
+    .receipt-card:active { opacity: .65; }
+    .receipt-card img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; }
     .receipt-card-label {
-      padding: 7px 9px;
-      font-size: 11px;
-      color: var(--text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      padding: 8px 10px;
+      font-size: 12px; color: var(--text-muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      letter-spacing: -0.1px;
     }
 
     #empty-gallery {
-      display: none;
-      flex: 1;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 12px;
-      padding: 48px 24px;
-      text-align: center;
+      display: none; flex: 1; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px; padding: 48px 24px; text-align: center;
     }
     #empty-gallery.visible { display: flex; }
-    #empty-gallery .icon { font-size: 52px; }
-    #empty-gallery p { color: var(--text-muted); font-size: 14px; }
+    #empty-gallery .icon { font-size: 56px; opacity: .4; }
+    #empty-gallery p { color: var(--text-muted); font-size: 15px; line-height: 1.5; }
 
     /* ── Detail Modal ── */
     #detail-modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.92);
-      z-index: 100;
+      display: none; position: fixed; inset: 0;
+      background: var(--bg); z-index: 200;
       flex-direction: column;
-      padding-top: var(--safe-top);
-      padding-bottom: var(--safe-bottom);
+      padding-top: var(--safe-top); padding-bottom: var(--safe-bottom);
     }
     #detail-modal.visible { display: flex; }
 
     #detail-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 20px;
-      background: var(--surface);
-      border-bottom: 1px solid rgba(255,255,255,.07);
+      display: flex; align-items: center;
+      height: 44px; padding: 0 8px;
+      background: rgba(242, 242, 247, 0.88);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 0.5px solid var(--sep);
+      gap: 4px; flex-shrink: 0;
     }
-    #detail-name { font-size: 16px; font-weight: 600; flex: 1; padding-right: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
+    @media (prefers-color-scheme: dark) {
+      #detail-toolbar { background: rgba(28, 28, 30, 0.88); }
+    }
+    #detail-name {
+      font-size: 15px; font-weight: 600; flex: 1;
+      padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .detail-action-btn {
-      padding: 7px 16px;
-      border-radius: 8px;
-      border: none;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-left: 8px;
+      padding: 6px 14px; border-radius: 14px; border: none;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      font-family: inherit; flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity .12s;
     }
-    #close-detail-btn { background: var(--card); color: var(--text); }
-    #download-btn { background: var(--accent2); color: #000; }
-    #delete-btn { background: var(--accent); color: #fff; }
+    .detail-action-btn:active { opacity: .7; }
+    #close-detail-btn { background: var(--fill); color: var(--blue); }
+    #download-btn     { background: var(--blue); color: #fff; }
+    #delete-btn       { background: transparent; color: var(--red); }
 
     #detail-img-wrap {
-      flex: 1;
-      overflow: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
+      flex: 1; overflow: auto; -webkit-overflow-scrolling: touch;
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px; background: var(--bg);
     }
-    #detail-img {
-      max-width: 100%;
-      max-height: 100%;
-      border-radius: 8px;
-      object-fit: contain;
-    }
+    #detail-img { max-width: 100%; max-height: 100%; border-radius: 12px; object-fit: contain; }
 
     #detail-meta {
-      padding: 12px 20px;
-      font-size: 12px;
-      color: var(--text-muted);
-      background: var(--surface);
-      border-top: 1px solid rgba(255,255,255,.07);
+      padding: 10px 16px; font-size: 12px; color: var(--text-muted);
+      background: var(--surface); border-top: 0.5px solid var(--sep);
+      letter-spacing: -0.1px;
     }
 
-    /* ── Hidden canvas for capture ── */
+    /* ── Hidden canvas ── */
     #capture-canvas { display: none; }
-
-    /* ── Auto-crop UI ── */
-    #crop-status {
-      font-size: 12px;
-      color: var(--text-muted);
-      min-height: 16px;
-      text-align: center;
-    }
-    #crop-status.found { color: var(--accent2); }
-
-    #crop-toggle {
-      display: none;
-      background: var(--card);
-      border-radius: 8px;
-      padding: 3px;
-      gap: 3px;
-      width: 100%;
-      max-width: 340px;
-    }
-    .crop-opt {
-      flex: 1;
-      padding: 8px;
-      border: none;
-      border-radius: 6px;
-      background: transparent;
-      color: var(--text-muted);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .crop-opt.active { background: var(--accent2); color: #000; }
   </style>
 </head>
 <body>
@@ -463,15 +468,9 @@
   <!-- Header -->
   <header>
     <h1>Receipts</h1>
-    <span id="app-version" style="font-size:10px;color:var(--text-muted);margin-right:8px">v4</span>
+    <span id="app-version" style="font-size:10px;color:var(--text-muted);margin-right:8px">v5</span>
     <span id="receipt-count">0</span>
   </header>
-
-  <!-- Tab Bar -->
-  <nav>
-    <button class="tab-btn active" data-panel="camera-panel">📷 Capture</button>
-    <button class="tab-btn" data-panel="gallery-panel">🗂 Gallery</button>
-  </nav>
 
   <!-- Camera Panel -->
   <div id="camera-panel" class="panel active">
@@ -510,21 +509,40 @@
     </div>
   </div>
 
+  <!-- Bottom Tab Bar -->
+  <nav>
+    <button class="tab-btn active" data-panel="camera-panel">
+      <svg viewBox="0 0 28 28" fill="currentColor" aria-hidden="true">
+        <path d="M10.2 5 8.7 7H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.7L17.8 5h-7.6zm3.8 14a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+      </svg>
+      Capture
+    </button>
+    <button class="tab-btn" data-panel="gallery-panel">
+      <svg viewBox="0 0 28 28" fill="currentColor" aria-hidden="true">
+        <path d="M4 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zm2 0v9.6l4-4 4 4.8 3-3 5 5V6H6zm0 16h16v-2.1l-5-5-3 3-4-4.8-4 4V22z"/>
+      </svg>
+      Gallery
+    </button>
+  </nav>
+
 </div>
 
-<!-- Preview Modal -->
+<!-- Preview Modal (bottom sheet) -->
 <div id="preview-modal" role="dialog" aria-modal="true" aria-label="Preview receipt">
-  <h2>Save Receipt</h2>
-  <div id="crop-status"></div>
-  <div id="crop-toggle">
-    <button class="crop-opt active" id="use-crop-btn">Cropped</button>
-    <button class="crop-opt" id="use-orig-btn">Original</button>
-  </div>
-  <img id="preview-img" alt="Captured receipt preview">
-  <input id="receipt-name-input" type="text" placeholder="Receipt name (optional)" maxlength="80" autocomplete="off">
-  <div class="modal-actions">
-    <button id="discard-btn">Discard</button>
-    <button id="save-btn">Save</button>
+  <div id="preview-sheet">
+    <div class="sheet-handle"></div>
+    <h2>Save Receipt</h2>
+    <div id="crop-status"></div>
+    <div id="crop-toggle">
+      <button class="crop-opt active" id="use-crop-btn">Cropped</button>
+      <button class="crop-opt" id="use-orig-btn">Original</button>
+    </div>
+    <img id="preview-img" alt="Captured receipt preview">
+    <input id="receipt-name-input" type="text" placeholder="Receipt name" maxlength="80" autocomplete="off">
+    <div class="modal-actions">
+      <button id="save-btn">Save</button>
+      <button id="discard-btn">Discard</button>
+    </div>
   </div>
 </div>
 
