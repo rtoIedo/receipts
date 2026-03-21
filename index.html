@@ -10,6 +10,9 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Receipt Capture</title>
+  <!-- OpenCV.js for auto-crop: ~8 MB, loaded async, cached by SW after first load -->
+  <script>var Module={onRuntimeInitialized:function(){window.cvReady=true;}};</script>
+  <script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -412,6 +415,37 @@
 
     /* ── Hidden canvas for capture ── */
     #capture-canvas { display: none; }
+
+    /* ── Auto-crop UI ── */
+    #crop-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      min-height: 16px;
+      text-align: center;
+    }
+    #crop-status.found { color: var(--accent2); }
+
+    #crop-toggle {
+      display: none;
+      background: var(--card);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+      width: 100%;
+      max-width: 340px;
+    }
+    .crop-opt {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .crop-opt.active { background: var(--accent2); color: #000; }
   </style>
 </head>
 <body>
@@ -477,6 +511,11 @@
 <!-- Preview Modal -->
 <div id="preview-modal" role="dialog" aria-modal="true" aria-label="Preview receipt">
   <h2>Save Receipt</h2>
+  <div id="crop-status"></div>
+  <div id="crop-toggle">
+    <button class="crop-opt active" id="use-crop-btn">Cropped</button>
+    <button class="crop-opt" id="use-orig-btn">Original</button>
+  </div>
   <img id="preview-img" alt="Captured receipt preview">
   <input id="receipt-name-input" type="text" placeholder="Receipt name (optional)" maxlength="80" autocomplete="off">
   <div class="modal-actions">
@@ -590,9 +629,16 @@ document.getElementById('retry-camera').addEventListener('click', startCamera);
 const previewModal = document.getElementById('preview-modal');
 const previewImg = document.getElementById('preview-img');
 const nameInput = document.getElementById('receipt-name-input');
-let pendingDataURL = null;
+const cropStatus = document.getElementById('crop-status');
+const cropToggle = document.getElementById('crop-toggle');
+const useCropBtn = document.getElementById('use-crop-btn');
+const useOrigBtn = document.getElementById('use-orig-btn');
 
-document.getElementById('capture-btn').addEventListener('click', () => {
+let pendingDataURL = null;     // what will be saved
+let pendingOriginalURL = null;
+let pendingCroppedURL = null;
+
+document.getElementById('capture-btn').addEventListener('click', async () => {
   if (!stream) return;
 
   // Flash
@@ -604,11 +650,52 @@ document.getElementById('capture-btn').addEventListener('click', () => {
   captureCanvas.width = w;
   captureCanvas.height = h;
   ctx.drawImage(video, 0, 0, w, h);
-  pendingDataURL = captureCanvas.toDataURL('image/jpeg', 0.88);
 
-  previewImg.src = pendingDataURL;
+  const originalURL = captureCanvas.toDataURL('image/jpeg', 0.88);
+  pendingOriginalURL = originalURL;
+  pendingCroppedURL = null;
+  pendingDataURL = originalURL;
+
+  // Show preview immediately
+  previewImg.src = originalURL;
   nameInput.value = defaultReceiptName();
+  cropToggle.style.display = 'none';
+  cropStatus.className = '';
+  cropStatus.textContent = window.cvReady ? 'Detecting receipt…' : '';
   previewModal.classList.add('visible');
+
+  // Run auto-crop if OpenCV is ready
+  if (window.cvReady) {
+    const cropped = await detectAndCrop(captureCanvas);
+    if (cropped) {
+      pendingCroppedURL = cropped;
+      pendingDataURL = cropped;
+      previewImg.src = cropped;
+      cropStatus.textContent = '✓ Receipt detected';
+      cropStatus.className = 'found';
+      cropToggle.style.display = 'flex';
+      useCropBtn.classList.add('active');
+      useOrigBtn.classList.remove('active');
+    } else {
+      cropStatus.textContent = 'Receipt not detected — saving full photo';
+      cropStatus.className = '';
+    }
+  }
+});
+
+useCropBtn.addEventListener('click', () => {
+  if (!pendingCroppedURL) return;
+  pendingDataURL = pendingCroppedURL;
+  previewImg.src = pendingCroppedURL;
+  useCropBtn.classList.add('active');
+  useOrigBtn.classList.remove('active');
+});
+
+useOrigBtn.addEventListener('click', () => {
+  pendingDataURL = pendingOriginalURL;
+  previewImg.src = pendingOriginalURL;
+  useOrigBtn.classList.add('active');
+  useCropBtn.classList.remove('active');
 });
 
 function defaultReceiptName() {
@@ -633,6 +720,8 @@ document.getElementById('save-btn').addEventListener('click', async () => {
 
 document.getElementById('discard-btn').addEventListener('click', () => {
   pendingDataURL = null;
+  pendingOriginalURL = null;
+  pendingCroppedURL = null;
   previewModal.classList.remove('visible');
 });
 
@@ -757,6 +846,123 @@ async function requestPersistentStorage() {
 // ── Helpers ───────────────────────────────────────────────────
 function escHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Auto-crop (OpenCV.js) ─────────────────────────────────────
+// Wraps heavy synchronous OpenCV work in a setTimeout so the UI can
+// render "Detecting…" before the thread is blocked.
+function detectAndCrop(canvas) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      try {
+        const src = cv.imread(canvas);
+        const contour = findReceiptContour(src);
+        src.delete();
+
+        if (!contour) { resolve(null); return; }
+
+        const corners = getSortedCorners(contour);
+        contour.delete();
+
+        const imgSrc = cv.imread(canvas);
+        const dst = perspectiveWarp(imgSrc, corners);
+        imgSrc.delete();
+
+        if (!dst) { resolve(null); return; }
+
+        const out = document.createElement('canvas');
+        cv.imshow(out, dst);
+        dst.delete();
+
+        resolve(out.toDataURL('image/jpeg', 0.92));
+      } catch (e) {
+        console.error('Auto-crop error:', e);
+        resolve(null);
+      }
+    }, 60); // yield to allow UI repaint
+  });
+}
+
+function findReceiptContour(src) {
+  const gray = new cv.Mat();
+  const blurred = new cv.Mat();
+  const edges = new cv.Mat();
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  let best = null;
+
+  try {
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+    cv.Canny(blurred, edges, 75, 200);
+
+    // Dilate slightly to close edge gaps on receipts with faint borders
+    const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+    cv.dilate(edges, edges, kernel);
+    kernel.delete();
+
+    cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    const minArea = src.rows * src.cols * 0.05; // ignore tiny shapes
+    let maxArea = 0;
+
+    for (let i = 0; i < contours.size(); i++) {
+      const c = contours.get(i);
+      const peri = cv.arcLength(c, true);
+      const approx = new cv.Mat();
+      cv.approxPolyDP(c, approx, 0.02 * peri, true);
+
+      if (approx.rows === 4) {
+        const area = cv.contourArea(approx);
+        if (area > minArea && area > maxArea) {
+          maxArea = area;
+          if (best) best.delete();
+          best = approx.clone();
+        }
+      }
+      approx.delete();
+      c.delete();
+    }
+  } finally {
+    gray.delete(); blurred.delete(); edges.delete();
+    contours.delete(); hierarchy.delete();
+  }
+
+  return best; // caller must .delete()
+}
+
+function getSortedCorners(contour) {
+  const pts = [];
+  for (let i = 0; i < 4; i++) {
+    pts.push({ x: contour.data32S[i * 2], y: contour.data32S[i * 2 + 1] });
+  }
+  pts.sort((a, b) => a.y - b.y);
+  const top = pts.slice(0, 2).sort((a, b) => a.x - b.x);
+  const bot = pts.slice(2).sort((a, b) => a.x - b.x);
+  return [top[0], top[1], bot[1], bot[0]]; // tl, tr, br, bl
+}
+
+function perspectiveWarp(src, [tl, tr, br, bl]) {
+  const outW = Math.round(Math.max(
+    Math.hypot(tr.x - tl.x, tr.y - tl.y),
+    Math.hypot(br.x - bl.x, br.y - bl.y)
+  ));
+  const outH = Math.round(Math.max(
+    Math.hypot(bl.x - tl.x, bl.y - tl.y),
+    Math.hypot(br.x - tr.x, br.y - tr.y)
+  ));
+  if (outW < 50 || outH < 50) return null;
+
+  const srcPts = cv.matFromArray(4, 1, cv.CV_32FC2,
+    [tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y]);
+  const dstPts = cv.matFromArray(4, 1, cv.CV_32FC2,
+    [0, 0, outW, 0, outW, outH, 0, outH]);
+  const M = cv.getPerspectiveTransform(srcPts, dstPts);
+  const dst = new cv.Mat();
+  cv.warpPerspective(src, dst, M, new cv.Size(outW, outH));
+
+  srcPts.delete(); dstPts.delete(); M.delete();
+  return dst; // caller must .delete()
 }
 
 // ── Service Worker ────────────────────────────────────────────
