@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+VERSION_FILE="$ROOT/VERSION"
+HTML_FILE="$ROOT/index.html"
+
+OLD=$(cat "$VERSION_FILE")
+NEW=$((OLD + 1))
+printf '%s\n' "$NEW" > "$VERSION_FILE"
+
+TMP=$(mktemp)
+sed "s|<span id=\"app-version\"[^>]*>[^<]*</span>|<span id=\"app-version\" style=\"font-size:10px;color:var(--text-muted);margin-right:8px\">v${NEW}</span>|" "$HTML_FILE" > "$TMP"
+mv "$TMP" "$HTML_FILE"
+
+git add "$VERSION_FILE" "$HTML_FILE"
