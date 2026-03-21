@@ -463,7 +463,7 @@
   <!-- Header -->
   <header>
     <h1>Receipts</h1>
-    <span id="app-version" style="font-size:10px;color:var(--text-muted);margin-right:8px">v3</span>
+    <span id="app-version" style="font-size:10px;color:var(--text-muted);margin-right:8px">v4</span>
     <span id="receipt-count">0</span>
   </header>
 
@@ -852,55 +852,182 @@ function escHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ── Auto-crop (jscanify + OpenCV.js) ──────────────────────────
-// jscanify finds the largest contour, then picks the extreme point in each
-// quadrant as a corner — more robust than requiring an exact 4-sided polygon.
+// ── Auto-crop: Hough Lines (primary) + contour fallback ───────
+// Hough Lines finds the dominant straight edges in the image and computes
+// their intersections as corners — handles faint/partial edges better than
+// pure contour detection, which requires a closed, high-contrast boundary.
+
+// Return the intersection point of two infinite lines given as [x1,y1,x2,y2].
+function _lineIntersect(a, b) {
+  const [x1, y1, x2, y2] = a;
+  const [x3, y3, x4, y4] = b;
+  const d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (Math.abs(d) < 1e-9) return null; // parallel
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d;
+  return { x: x1 + t * (x2 - x1), y: y1 + t * (y2 - y1) };
+}
+
+// Extend a detected line segment to span the full image dimension so that
+// intersections land even when segments don't quite reach the corner.
+function _extendLine(l, isHoriz, W, H) {
+  if (isHoriz) {
+    if (l.x1 === l.x2) return [0, l.y1, W, l.y1];
+    const s = (l.y2 - l.y1) / (l.x2 - l.x1);
+    const y0 = l.y1 - s * l.x1;
+    return [0, y0, W, y0 + s * W];
+  } else {
+    if (l.y1 === l.y2) return [l.x1, 0, l.x1, H];
+    const s = (l.x2 - l.x1) / (l.y2 - l.y1);
+    const x0 = l.x1 - s * l.y1;
+    return [x0, 0, x0 + s * H, H];
+  }
+}
+
+// Warp canvas using the four detected corners via jscanify's perspective warp.
+function _warpCorners(canvas, corners) {
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const outW = Math.round(Math.max(
+    dist(corners.topRightCorner,    corners.topLeftCorner),
+    dist(corners.bottomRightCorner, corners.bottomLeftCorner)));
+  const outH = Math.round(Math.max(
+    dist(corners.bottomLeftCorner,  corners.topLeftCorner),
+    dist(corners.bottomRightCorner, corners.topRightCorner)));
+  if (outW < 50 || outH < 50) return null;
+  const out = new jscanify().extractPaper(canvas, outW, outH, corners);
+  return out ? out.toDataURL('image/jpeg', 0.92) : null;
+}
+
+// PRIMARY: Probabilistic Hough Lines.
+// Finds the best top/bottom/left/right edge lines, then intersects them.
+function _detectHough(canvas) {
+  const W = canvas.width, H = canvas.height;
+  let src, gray, blurred, edges, lines;
+  try {
+    src     = cv.imread(canvas);
+    gray    = new cv.Mat();
+    blurred = new cv.Mat();
+    edges   = new cv.Mat();
+    lines   = new cv.Mat();
+
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    // Bilateral filter: smooths noise while preserving sharp edges
+    cv.bilateralFilter(gray, blurred, 9, 75, 75, cv.BORDER_DEFAULT);
+    cv.Canny(blurred, edges, 30, 90);
+
+    // minLineLength = 10% of shorter side; maxLineGap = 20px; threshold = 60 votes
+    const minLen = Math.min(W, H) * 0.10;
+    cv.HoughLinesP(edges, lines, 1, Math.PI / 180, 60, minLen, 20);
+    if (lines.rows === 0) return null;
+
+    const hLines = [], vLines = [];
+    for (let i = 0; i < lines.rows; i++) {
+      const x1 = lines.data32S[i * 4],     y1 = lines.data32S[i * 4 + 1];
+      const x2 = lines.data32S[i * 4 + 2], y2 = lines.data32S[i * 4 + 3];
+      const angle = Math.abs(Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI);
+      const len   = Math.hypot(x2 - x1, y2 - y1);
+      if (len < minLen) continue;
+      if (angle < 20 || angle > 160)         hLines.push({ x1, y1, x2, y2, mid: (y1 + y2) / 2 });
+      else if (angle > 70 && angle < 110)    vLines.push({ x1, y1, x2, y2, mid: (x1 + x2) / 2 });
+    }
+    if (hLines.length < 2 || vLines.length < 2) return null;
+
+    // Split into top/bottom and left/right halves
+    const topLines   = hLines.filter(l => l.mid <  H / 2);
+    const botLines   = hLines.filter(l => l.mid >= H / 2);
+    const leftLines  = vLines.filter(l => l.mid <  W / 2);
+    const rightLines = vLines.filter(l => l.mid >= W / 2);
+    if (!topLines.length || !botLines.length || !leftLines.length || !rightLines.length) return null;
+
+    // Pick the outermost line from each cluster
+    const topLine   = topLines.reduce( (a, b) => a.mid < b.mid ? a : b);
+    const botLine   = botLines.reduce( (a, b) => a.mid > b.mid ? a : b);
+    const leftLine  = leftLines.reduce((a, b) => a.mid < b.mid ? a : b);
+    const rightLine = rightLines.reduce((a, b) => a.mid > b.mid ? a : b);
+
+    const top   = _extendLine(topLine,   true,  W, H);
+    const bot   = _extendLine(botLine,   true,  W, H);
+    const left  = _extendLine(leftLine,  false, W, H);
+    const right = _extendLine(rightLine, false, W, H);
+
+    const tl = _lineIntersect(top, left);
+    const tr = _lineIntersect(top, right);
+    const bl = _lineIntersect(bot, left);
+    const br = _lineIntersect(bot, right);
+    if (!tl || !tr || !bl || !br) return null;
+
+    // Reject if any corner is more than 15% outside the image
+    const margin = Math.min(W, H) * 0.15;
+    for (const p of [tl, tr, bl, br]) {
+      if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) return null;
+    }
+
+    // Reject if detected quad covers less than 15% of the image
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
+    const corners = {
+      topLeftCorner:     { x: clamp(tl.x, 0, W), y: clamp(tl.y, 0, H) },
+      topRightCorner:    { x: clamp(tr.x, 0, W), y: clamp(tr.y, 0, H) },
+      bottomLeftCorner:  { x: clamp(bl.x, 0, W), y: clamp(bl.y, 0, H) },
+      bottomRightCorner: { x: clamp(br.x, 0, W), y: clamp(br.y, 0, H) },
+    };
+    const { topLeftCorner: c_tl, topRightCorner: c_tr,
+            bottomLeftCorner: c_bl, bottomRightCorner: c_br } = corners;
+    const quadArea =
+      0.5 * Math.abs((c_tr.x - c_tl.x) * (c_bl.y - c_tl.y) - (c_bl.x - c_tl.x) * (c_tr.y - c_tl.y)) +
+      0.5 * Math.abs((c_br.x - c_tr.x) * (c_bl.y - c_tr.y) - (c_bl.x - c_tr.x) * (c_br.y - c_tr.y));
+    if (quadArea < W * H * 0.15) return null;
+
+    return _warpCorners(canvas, corners);
+  } catch (e) {
+    console.error('Hough detection error:', e);
+    return null;
+  } finally {
+    src     && src.delete();
+    gray    && gray.delete();
+    blurred && blurred.delete();
+    edges   && edges.delete();
+    lines   && lines.delete();
+  }
+}
+
+// FALLBACK: contour-based (original jscanify approach).
+// Works well when the document has a strong closed contour against the background.
+function _detectContour(canvas) {
+  try {
+    const scanner = new jscanify();
+    const img     = cv.imread(canvas);
+    const contour = scanner.findPaperContour(img);
+    img.delete();
+    if (!contour) return null;
+
+    const { topLeftCorner: tl, topRightCorner: tr,
+            bottomLeftCorner: bl, bottomRightCorner: br } = scanner.getCornerPoints(contour);
+    contour.delete();
+    if (!tl || !tr || !bl || !br) return null;
+
+    // Expand corners 2% outward so edge-detection error never clips text
+    const cx  = (tl.x + tr.x + bl.x + br.x) / 4;
+    const cy  = (tl.y + tr.y + bl.y + br.y) / 4;
+    const pad = Math.hypot(br.x - tl.x, br.y - tl.y) * 0.02;
+    const expand = p => {
+      const dx = p.x - cx, dy = p.y - cy, len = Math.hypot(dx, dy) || 1;
+      return { x: Math.round(p.x + dx / len * pad), y: Math.round(p.y + dy / len * pad) };
+    };
+    return _warpCorners(canvas, {
+      topLeftCorner:     expand(tl),
+      topRightCorner:    expand(tr),
+      bottomLeftCorner:  expand(bl),
+      bottomRightCorner: expand(br),
+    });
+  } catch (e) {
+    console.error('Contour detection error:', e);
+    return null;
+  }
+}
+
 function detectAndCrop(canvas) {
   return new Promise(resolve => {
     setTimeout(() => {
-      try {
-        const scanner = new jscanify();
-        const img = cv.imread(canvas);
-        const contour = scanner.findPaperContour(img);
-        img.delete();
-
-        if (!contour) { resolve(null); return; }
-
-        const { topLeftCorner: tl, topRightCorner: tr,
-                bottomLeftCorner: bl, bottomRightCorner: br } = scanner.getCornerPoints(contour);
-        contour.delete();
-
-        if (!tl || !tr || !bl || !br) { resolve(null); return; }
-
-        // Expand corners 2% outward so edge-detection error never clips text
-        const cx = (tl.x + tr.x + bl.x + br.x) / 4;
-        const cy = (tl.y + tr.y + bl.y + br.y) / 4;
-        const diag = Math.hypot(br.x - tl.x, br.y - tl.y);
-        const pad = diag * 0.02;
-        const expand = p => {
-          const dx = p.x - cx, dy = p.y - cy, len = Math.hypot(dx, dy) || 1;
-          return { x: Math.round(p.x + dx / len * pad), y: Math.round(p.y + dy / len * pad) };
-        };
-        const corners = {
-          topLeftCorner:     expand(tl),
-          topRightCorner:    expand(tr),
-          bottomLeftCorner:  expand(bl),
-          bottomRightCorner: expand(br),
-        };
-
-        const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-        const outW = Math.round(Math.max(dist(corners.topRightCorner, corners.topLeftCorner),
-                                         dist(corners.bottomRightCorner, corners.bottomLeftCorner)));
-        const outH = Math.round(Math.max(dist(corners.bottomLeftCorner, corners.topLeftCorner),
-                                         dist(corners.bottomRightCorner, corners.topRightCorner)));
-        if (outW < 50 || outH < 50) { resolve(null); return; }
-
-        const out = scanner.extractPaper(canvas, outW, outH, corners);
-        resolve(out ? out.toDataURL('image/jpeg', 0.92) : null);
-      } catch (e) {
-        console.error('Auto-crop error:', e);
-        resolve(null);
-      }
+      resolve(_detectHough(canvas) ?? _detectContour(canvas));
     }, 60);
   });
 }
