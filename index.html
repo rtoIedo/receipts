@@ -73,23 +73,6 @@
       padding-top: var(--safe-top);
     }
 
-    /* ── Install Banner ── */
-    #install-banner {
-      display: none;
-      background: var(--surface);
-      padding: 10px 16px;
-      font-size: 13px;
-      align-items: center;
-      gap: 10px;
-      border-bottom: 0.5px solid var(--sep);
-    }
-    #install-banner.visible { display: flex; }
-    #install-banner span { flex: 1; line-height: 1.5; color: var(--text2); }
-    #install-banner button {
-      background: none; border: none; color: var(--blue);
-      font-size: 20px; cursor: pointer; padding: 0 4px; line-height: 1;
-    }
-
     /* ── Navigation Bar ── */
     header {
       height: 44px;
@@ -459,16 +442,10 @@
 <body>
 <div id="app">
 
-  <!-- Install Banner -->
-  <div id="install-banner">
-    <span>📌 Add to Home Screen via Share (⬆) → "Add to Home Screen" to keep your receipts safe.</span>
-    <button id="dismiss-banner" aria-label="Dismiss">✕</button>
-  </div>
-
   <!-- Header -->
   <header>
     <h1>Receipts</h1>
-    <span id="app-version" style="font-size:10px;color:var(--text-muted);margin-right:8px">v5</span>
+    <span id="app-version" style="font-size:10px;color:var(--text-muted);margin-right:8px">v6</span>
     <span id="receipt-count">0</span>
   </header>
 
@@ -843,21 +820,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// ── Install Banner ────────────────────────────────────────────
-function checkInstallBanner() {
-  const isInstalled = window.navigator.standalone === true;
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const dismissed = localStorage.getItem('banner-dismissed');
-  if (isIOS && !isInstalled && !dismissed) {
-    document.getElementById('install-banner').classList.add('visible');
-  }
-}
-
-document.getElementById('dismiss-banner').addEventListener('click', () => {
-  document.getElementById('install-banner').classList.remove('visible');
-  localStorage.setItem('banner-dismissed', '1');
-});
-
 // ── Persistent Storage ────────────────────────────────────────
 async function requestPersistentStorage() {
   if (navigator.storage && navigator.storage.persist) {
@@ -1060,7 +1022,6 @@ if ('serviceWorker' in navigator) {
 // ── Init ──────────────────────────────────────────────────────
 (async () => {
   db = await openDB();
-  checkInstallBanner();
   await refreshGallery();
   startCamera();
   requestPersistentStorage();
