@@ -549,6 +549,7 @@ async function initScanner() {
       autoCaptureEnabled: true,
       autoCaptureSensitivity: 0.66,
       autoCaptureDelay: 1200,
+      useImageCaptureAPI: true,
       mirrored: false,
       scannerConfiguration: {
         parameters: {
@@ -594,7 +595,7 @@ async function initScanner() {
 
         const toDataURL = async (image) => {
           if (!image) return null;
-          const bytes = await image.toJpeg(88);
+          const bytes = await image.toJpeg(93);
           const blob = new Blob([bytes], { type: 'image/jpeg' });
           return new Promise((res, rej) => {
             const reader = new FileReader();
