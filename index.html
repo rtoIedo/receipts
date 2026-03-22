@@ -494,6 +494,35 @@
       font-weight: 600;
     }
 
+    /* ── Manual Capture Button ── */
+    #manual-capture-btn {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: 4px solid rgba(255,255,255,0.9);
+      background: transparent;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      padding: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #manual-capture-btn::after {
+      content: '';
+      display: block;
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.92);
+      transition: transform .1s, background .15s;
+    }
+    #manual-capture-btn:active::after {
+      transform: scale(0.88);
+      background: rgba(255,255,255,0.6);
+    }
+
     /* ── Hidden canvas ── */
     #capture-canvas { display: none; }
   </style>
@@ -518,6 +547,7 @@
   <!-- Camera Panel -->
   <div id="camera-panel" class="panel active">
     <div id="scanner-container"></div>
+    <button id="manual-capture-btn" aria-label="Capture"></button>
     <div id="no-camera">
       <div class="icon">📷</div>
       <p>Camera access is required.<br>Please allow camera access and try again.</p>
@@ -787,6 +817,17 @@ async function initScanner() {
 }
 
 document.getElementById('retry-camera').addEventListener('click', initScanner);
+
+// ── Manual Capture Button ────────────────────────────────────
+document.getElementById('manual-capture-btn').addEventListener('click', async () => {
+  if (!scanner) return;
+  try {
+    await scanner.detectAndCaptureDocument();
+  } catch (e) {
+    console.warn('Manual capture failed, falling back to snap:', e);
+    try { await scanner.snapshotDocument(); } catch (_) {}
+  }
+});
 
 // ── Capture ───────────────────────────────────────────────────
 const previewModal = document.getElementById('preview-modal');
