@@ -21,7 +21,7 @@
       --bg:          #F2F2F7;
       --surface:     #FFFFFF;
       --surface2:    #F2F2F7;
-      --blue:        #007AFF;
+      --blue:        #1EB4DC;
       --red:         #FF3B30;
       --green:       #34C759;
       --text:        #000000;
@@ -35,7 +35,7 @@
       --safe-bottom: env(safe-area-inset-bottom, 0px);
       /* Legacy aliases used by existing JS inline-style references */
       --accent:      #FF3B30;
-      --accent2:     #007AFF;
+      --accent2:     #1EB4DC;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -94,7 +94,7 @@
     }
     #app-version { font-size: 11px; color: var(--text-muted); margin-right: 6px; }
     #receipt-count {
-      background: var(--red);
+      background: var(--blue);
       color: #fff;
       font-size: 12px;
       font-weight: 600;
@@ -184,7 +184,7 @@
     #no-camera p { color: var(--text-muted); font-size: 15px; line-height: 1.6; }
     #retry-camera {
       margin-top: 8px; padding: 12px 28px;
-      background: var(--blue); color: #fff;
+      background: linear-gradient(135deg, #1EB4DC, #28A0FF); color: #fff;
       border: none; border-radius: 14px;
       font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
     }
@@ -295,7 +295,7 @@
       transition: opacity .12s;
     }
     .modal-actions button:active { opacity: .72; }
-    #save-btn    { background: var(--blue); color: #fff; }
+    #save-btn    { background: linear-gradient(135deg, #1EB4DC, #28A0FF); color: #fff; }
     #discard-btn { background: var(--fill); color: var(--red); }
 
     /* ── Gallery Panel ── */
@@ -920,7 +920,7 @@ function updateStorageBar(bytes) {
   const used = formatBytes(bytes);
   storageLabel.textContent = `Storage: ${used} / 500 MB used (${pct}%)`;
   storageFill.style.width = pct + '%';
-  storageFill.style.background = pct > 80 ? '#e94560' : '#53c0f0';
+  storageFill.style.background = pct > 80 ? '#FF3B30' : '#1EB4DC';
 }
 
 function formatBytes(b) {
