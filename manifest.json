@@ -4,8 +4,8 @@
   "description": "Capture and store receipt photos with OCR on your device",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#1a1a2e",
+  "background_color": "#1EB4DC",
+  "theme_color": "#1EB4DC",
   "orientation": "portrait",
   "icons": [
     {
