@@ -548,8 +548,15 @@ async function initScanner() {
       containerId: 'scanner-container',
       autoCaptureEnabled: true,
       autoCaptureSensitivity: 0.66,
-      autoCaptureDelay: 1000,
+      autoCaptureDelay: 1200,
       mirrored: false,
+      scannerConfiguration: {
+        parameters: {
+          acceptedSizeScore: 50,
+          acceptedAngleScore: 65,
+          acceptedBrightnessThreshold: 0,
+        }
+      },
       style: {
         outline: {
           polygon: {
