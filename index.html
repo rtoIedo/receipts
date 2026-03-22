@@ -71,23 +71,27 @@
 
     /* ── Navigation Bar ── */
     header {
-      height: 44px;
-      background: rgba(242, 242, 247, 0.88);
-      -webkit-backdrop-filter: saturate(180%) blur(20px);
-      backdrop-filter: saturate(180%) blur(20px);
-      border-bottom: 0.5px solid var(--sep);
+      background: var(--bg);
       padding: 0 16px;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
       flex-shrink: 0;
       position: relative;
       z-index: 10;
     }
-    @media (prefers-color-scheme: dark) {
-      header { background: rgba(28, 28, 30, 0.88); }
+    .header-top {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
     }
-    header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.4px; }
+    header h1 {
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      padding: 0 0 8px;
+      line-height: 1.1;
+    }
     #app-version { font-size: 11px; color: var(--text-muted); margin-right: 6px; }
     #receipt-count {
       background: var(--red);
@@ -151,7 +155,11 @@
       transition: color 0.1s;
     }
     nav button svg { width: 26px; height: 26px; }
-    nav button.active { color: var(--blue); }
+    nav button.active { color: var(--blue); font-weight: 500; }
+    nav button .icon-filled { display: none; }
+    nav button .icon-outline { display: block; }
+    nav button.active .icon-filled { display: block; }
+    nav button.active .icon-outline { display: none; }
 
     /* ── Camera Panel ── */
     #camera-panel { position: relative; background: #000; }
@@ -303,25 +311,41 @@
     #storage-track { height: 4px; background: var(--fill); border-radius: 2px; overflow: hidden; }
     #storage-fill  { height: 100%; background: var(--blue); border-radius: 2px; transition: width .4s, background .4s; width: 0%; }
 
+    /* ── Gallery Section Headers ── */
+    .gallery-section-header {
+      font-size: 20px; font-weight: 700;
+      padding: 20px 16px 8px;
+      color: var(--text);
+      letter-spacing: 0.2px;
+    }
+    .gallery-section-header:first-child { padding-top: 12px; }
+
     #gallery-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1px;
-      background: var(--sep-opaque);
+      gap: 12px;
+      padding: 4px 16px 16px;
+      background: transparent;
     }
     .receipt-card {
       background: var(--surface);
       overflow: hidden; cursor: pointer;
-      transition: opacity .12s;
+      transition: transform .15s, opacity .12s;
       -webkit-tap-highlight-color: transparent;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 0.5px 1px rgba(0,0,0,.04);
     }
-    .receipt-card:active { opacity: .65; }
-    .receipt-card img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; }
+    .receipt-card:active { transform: scale(0.96); opacity: .85; }
+    .receipt-card img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; border-radius: 12px 12px 0 0; }
     .receipt-card-label {
       padding: 8px 10px;
-      font-size: 12px; color: var(--text-muted);
+      font-size: 13px; font-weight: 500; color: var(--text);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       letter-spacing: -0.1px;
+    }
+    .receipt-card-date {
+      padding: 0 10px 8px;
+      font-size: 11px; color: var(--text-muted);
     }
 
     #empty-gallery {
@@ -338,8 +362,15 @@
       background: var(--bg); z-index: 200;
       flex-direction: column;
       padding-top: var(--safe-top); padding-bottom: var(--safe-bottom);
+      transition: background 0.25s;
     }
     #detail-modal.visible { display: flex; }
+    #detail-modal.dragging { transition: none; }
+    #detail-modal .detail-drag-wrap {
+      display: flex; flex-direction: column; flex: 1; min-height: 0;
+      transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.3s;
+    }
+    #detail-modal.dragging .detail-drag-wrap { transition: none; }
 
     #detail-toolbar {
       display: flex; align-items: center;
@@ -353,21 +384,34 @@
     @media (prefers-color-scheme: dark) {
       #detail-toolbar { background: rgba(28, 28, 30, 0.88); }
     }
+    .detail-back-btn {
+      background: none; border: none;
+      color: var(--blue); cursor: pointer;
+      font-size: 17px; font-family: inherit;
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 8px 4px 0;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity .12s;
+      flex-shrink: 0;
+    }
+    .detail-back-btn:active { opacity: .5; }
+    .detail-back-btn svg { flex-shrink: 0; }
     #detail-name {
       font-size: 15px; font-weight: 600; flex: 1;
-      padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      text-align: center;
     }
     .detail-action-btn {
-      padding: 6px 14px; border-radius: 14px; border: none;
-      font-size: 14px; font-weight: 600; cursor: pointer;
+      padding: 6px 10px; border-radius: 8px; border: none;
+      background: none; cursor: pointer;
       font-family: inherit; flex-shrink: 0;
       -webkit-tap-highlight-color: transparent;
       transition: opacity .12s;
+      display: flex; align-items: center; justify-content: center;
     }
-    .detail-action-btn:active { opacity: .7; }
-    #close-detail-btn { background: var(--fill); color: var(--blue); }
-    #download-btn     { background: var(--blue); color: #fff; }
-    #delete-btn       { background: transparent; color: var(--red); }
+    .detail-action-btn:active { opacity: .5; }
+    #download-btn     { color: var(--blue); }
+    #delete-btn       { color: var(--red); }
 
     #detail-img-wrap {
       flex: 1; overflow: auto; -webkit-overflow-scrolling: touch;
@@ -382,6 +426,76 @@
       letter-spacing: -0.1px;
     }
 
+    /* ── Toast Notification ── */
+    #toast {
+      position: fixed;
+      top: calc(var(--safe-top) + 12px);
+      left: 50%; transform: translateX(-50%) translateY(-120px);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 15px; font-weight: 500;
+      padding: 12px 20px;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08);
+      z-index: 999;
+      display: flex; align-items: center; gap: 8px;
+      transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+      pointer-events: none;
+    }
+    #toast.visible { transform: translateX(-50%) translateY(0); }
+    #toast .toast-icon {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--green);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    #toast .toast-icon svg { width: 14px; height: 14px; }
+
+    /* ── iOS Action Sheet ── */
+    #action-sheet-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.4);
+      z-index: 300;
+      align-items: flex-end; justify-content: center;
+    }
+    #action-sheet-overlay.visible { display: flex; }
+    #action-sheet {
+      width: calc(100% - 16px);
+      margin-bottom: calc(8px + var(--safe-bottom));
+      display: flex; flex-direction: column; gap: 8px;
+      animation: sheetUp 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .action-sheet-group {
+      background: var(--surface);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    @media (prefers-color-scheme: dark) {
+      .action-sheet-group { background: var(--surface2); }
+    }
+    .action-sheet-title {
+      padding: 14px 16px 4px;
+      font-size: 13px; color: var(--text-muted);
+      text-align: center;
+    }
+    .action-sheet-btn {
+      width: 100%; padding: 18px 16px;
+      border: none; background: none;
+      font-size: 20px; font-family: inherit;
+      cursor: pointer; text-align: center;
+      -webkit-tap-highlight-color: transparent;
+      color: var(--blue);
+    }
+    .action-sheet-btn:active { background: var(--fill); }
+    .action-sheet-btn.destructive { color: var(--red); }
+    .action-sheet-btn + .action-sheet-btn {
+      border-top: 0.5px solid var(--sep);
+    }
+    .action-sheet-cancel {
+      font-weight: 600;
+    }
+
     /* ── Hidden canvas ── */
     #capture-canvas { display: none; }
   </style>
@@ -391,8 +505,7 @@
 
   <!-- Header -->
   <header>
-    <h1>Receipts</h1>
-    <div style="display:flex;align-items:center;gap:4px;margin-left:auto">
+    <div class="header-top">
       <button id="refresh-btn" aria-label="Refresh">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
@@ -401,6 +514,7 @@
       </button>
       <span id="receipt-count">0</span>
     </div>
+    <h1>Receipts</h1>
   </header>
 
   <!-- Camera Panel -->
@@ -419,7 +533,7 @@
       <div id="storage-label">Storage: calculating…</div>
       <div id="storage-track"><div id="storage-fill"></div></div>
     </div>
-    <div id="gallery-grid"></div>
+    <div id="gallery-sections"></div>
     <div id="empty-gallery">
       <div class="icon">🧾</div>
       <p>No receipts yet.<br>Switch to Capture to take your first photo.</p>
@@ -429,14 +543,26 @@
   <!-- Bottom Tab Bar -->
   <nav>
     <button class="tab-btn active" data-panel="camera-panel">
-      <svg viewBox="0 0 28 28" fill="currentColor" aria-hidden="true">
-        <path d="M10.2 5 8.7 7H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.7L17.8 5h-7.6zm3.8 14a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+      <!-- Filled (active) -->
+      <svg class="icon-filled" viewBox="0 0 28 28" fill="currentColor" aria-hidden="true">
+        <path d="M10.2 5 8.7 7H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.7L17.8 5h-7.6zM14 19a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
+      </svg>
+      <!-- Outline (inactive) -->
+      <svg class="icon-outline" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M10.2 5 8.7 7H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.7L17.8 5h-7.6z"/>
+        <circle cx="14" cy="14" r="4"/>
       </svg>
       Capture
     </button>
     <button class="tab-btn" data-panel="gallery-panel">
-      <svg viewBox="0 0 28 28" fill="currentColor" aria-hidden="true">
+      <!-- Filled (active) -->
+      <svg class="icon-filled" viewBox="0 0 28 28" fill="currentColor" aria-hidden="true">
         <path d="M4 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zm2 0v9.6l4-4 4 4.8 3-3 5 5V6H6zm0 16h16v-2.1l-5-5-3 3-4-4.8-4 4V22z"/>
+      </svg>
+      <!-- Outline (inactive) -->
+      <svg class="icon-outline" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <rect x="4" y="4" width="20" height="20" rx="2"/>
+        <path d="M4 16l5-5 4 4.5 3-3 6 6"/>
       </svg>
       Gallery
     </button>
@@ -465,18 +591,46 @@
 
 <!-- Detail Modal -->
 <div id="detail-modal" role="dialog" aria-modal="true" aria-label="Receipt detail">
-  <div id="detail-toolbar">
-    <span id="detail-name"></span>
-    <button class="detail-action-btn" id="close-detail-btn">Close</button>
-    <button class="detail-action-btn" id="download-btn">Download</button>
-    <button class="detail-action-btn" id="delete-btn">Delete</button>
+  <div class="detail-drag-wrap">
+    <div id="detail-toolbar">
+      <button class="detail-back-btn" id="close-detail-btn">
+        <svg width="12" height="20" viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg>
+        Gallery
+      </button>
+      <span id="detail-name"></span>
+      <button class="detail-action-btn" id="download-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button class="detail-action-btn" id="delete-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>
+    </div>
+    <div id="detail-img-wrap">
+      <img id="detail-img" alt="Receipt detail">
+    </div>
+    <div id="detail-meta"></div>
   </div>
-  <div id="detail-img-wrap">
-    <img id="detail-img" alt="Receipt detail">
-  </div>
-  <div id="detail-meta" id="detail-meta"></div>
 </div>
 
+
+<!-- Toast -->
+<div id="toast">
+  <span class="toast-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L19 7"/></svg></span>
+  <span id="toast-msg">Saved</span>
+</div>
+
+<!-- Action Sheet -->
+<div id="action-sheet-overlay">
+  <div id="action-sheet">
+    <div class="action-sheet-group">
+      <div class="action-sheet-title" id="action-sheet-title"></div>
+      <button class="action-sheet-btn destructive" id="action-sheet-confirm">Delete</button>
+    </div>
+    <div class="action-sheet-group">
+      <button class="action-sheet-btn action-sheet-cancel" id="action-sheet-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ── IndexedDB ──────────────────────────────────────────────────
@@ -686,6 +840,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   previewModal.classList.remove('visible');
   if (scanner) scanner.enableAutoCapture();
   await refreshGallery();
+  showToast('Receipt saved');
   requestPersistentStorage();
 });
 
@@ -698,15 +853,30 @@ document.getElementById('discard-btn').addEventListener('click', () => {
 });
 
 // ── Gallery ───────────────────────────────────────────────────
-const grid = document.getElementById('gallery-grid');
+const gallerySections = document.getElementById('gallery-sections');
 const emptyGallery = document.getElementById('empty-gallery');
 const receiptCount = document.getElementById('receipt-count');
 const storageLabel = document.getElementById('storage-label');
 const storageFill = document.getElementById('storage-fill');
 
+function dateLabel(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const recDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = (today - recDay) / 86400000;
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function timeLabel(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 async function refreshGallery() {
   const records = await dbGetAll();
-  grid.innerHTML = '';
+  gallerySections.innerHTML = '';
   receiptCount.textContent = records.length;
 
   if (records.length === 0) {
@@ -716,17 +886,37 @@ async function refreshGallery() {
   }
   emptyGallery.classList.remove('visible');
 
+  // Group by date
+  const groups = new Map();
   let totalBytes = 0;
   records.forEach(r => {
     totalBytes += r.sizeBytes || 0;
-    const card = document.createElement('div');
-    card.className = 'receipt-card';
-    card.innerHTML = `
-      <img src="${r.dataURL}" alt="${escHtml(r.name)}" loading="lazy">
-      <div class="receipt-card-label">${escHtml(r.name)}</div>`;
-    card.addEventListener('click', () => openDetail(r));
-    grid.appendChild(card);
+    const label = dateLabel(r.ts);
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(r);
   });
+
+  groups.forEach((items, label) => {
+    const header = document.createElement('div');
+    header.className = 'gallery-section-header';
+    header.textContent = label;
+    gallerySections.appendChild(header);
+
+    const grid = document.createElement('div');
+    grid.id = 'gallery-grid';
+    items.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'receipt-card';
+      card.innerHTML = `
+        <img src="${r.dataURL}" alt="${escHtml(r.name)}" loading="lazy">
+        <div class="receipt-card-label">${escHtml(r.name)}</div>
+        <div class="receipt-card-date">${timeLabel(r.ts)}</div>`;
+      card.addEventListener('click', () => openDetail(r));
+      grid.appendChild(card);
+    });
+    gallerySections.appendChild(grid);
+  });
+
   updateStorageBar(totalBytes);
 }
 
@@ -774,12 +964,66 @@ document.getElementById('download-btn').addEventListener('click', () => {
 
 document.getElementById('delete-btn').addEventListener('click', async () => {
   if (!currentRecord) return;
-  if (!confirm(`Delete "${currentRecord.name}"?`)) return;
+  const confirmed = await showActionSheet(
+    `Delete "${currentRecord.name}"? This cannot be undone.`,
+    'Delete Receipt'
+  );
+  if (!confirmed) return;
   await dbDelete(currentRecord.id);
   detailModal.classList.remove('visible');
   currentRecord = null;
   await refreshGallery();
 });
+
+// ── Swipe-to-dismiss detail modal ─────────────────────────────
+{
+  const dragWrap = detailModal.querySelector('.detail-drag-wrap');
+  let startY = 0, currentY = 0, isDragging = false;
+
+  detailModal.addEventListener('touchstart', (e) => {
+    if (e.target.closest('#detail-toolbar') || e.target.closest('.detail-action-btn') || e.target.closest('.detail-back-btn')) return;
+    startY = e.touches[0].clientY;
+    isDragging = false;
+  }, { passive: true });
+
+  detailModal.addEventListener('touchmove', (e) => {
+    currentY = e.touches[0].clientY;
+    const dy = currentY - startY;
+    if (dy < 0) return; // only drag down
+    if (dy > 10) isDragging = true;
+    if (!isDragging) return;
+    detailModal.classList.add('dragging');
+    const progress = Math.min(dy / 400, 1);
+    dragWrap.style.transform = `translateY(${dy}px) scale(${1 - progress * 0.08})`;
+    dragWrap.style.opacity = 1 - progress * 0.3;
+    dragWrap.style.borderRadius = `${progress * 16}px`;
+    detailModal.style.background = `rgba(0,0,0,${0.6 - progress * 0.6})`;
+  }, { passive: true });
+
+  detailModal.addEventListener('touchend', () => {
+    if (!isDragging) return;
+    detailModal.classList.remove('dragging');
+    const dy = currentY - startY;
+    if (dy > 150) {
+      dragWrap.style.transform = `translateY(${window.innerHeight}px) scale(0.9)`;
+      dragWrap.style.opacity = '0';
+      setTimeout(() => {
+        detailModal.classList.remove('visible');
+        dragWrap.style.transform = '';
+        dragWrap.style.opacity = '';
+        dragWrap.style.borderRadius = '';
+        detailModal.style.background = '';
+        currentRecord = null;
+      }, 300);
+    } else {
+      dragWrap.style.transform = '';
+      dragWrap.style.opacity = '';
+      dragWrap.style.borderRadius = '';
+      detailModal.style.background = '';
+    }
+    isDragging = false;
+  }, { passive: true });
+}
 
 // ── Tabs ──────────────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -802,6 +1046,50 @@ async function requestPersistentStorage() {
     await navigator.storage.persist();
   }
 }
+
+// ── Toast ─────────────────────────────────────────────────────
+const toast = document.getElementById('toast');
+const toastMsg = document.getElementById('toast-msg');
+let toastTimer = null;
+
+function showToast(msg) {
+  toastMsg.textContent = msg;
+  toast.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('visible'), 2200);
+}
+
+// ── Action Sheet ──────────────────────────────────────────────
+const actionSheetOverlay = document.getElementById('action-sheet-overlay');
+const actionSheetTitle = document.getElementById('action-sheet-title');
+const actionSheetConfirm = document.getElementById('action-sheet-confirm');
+const actionSheetCancel = document.getElementById('action-sheet-cancel');
+let actionSheetResolve = null;
+
+function showActionSheet(title, confirmLabel) {
+  actionSheetTitle.textContent = title;
+  actionSheetConfirm.textContent = confirmLabel;
+  actionSheetOverlay.classList.add('visible');
+  return new Promise(resolve => { actionSheetResolve = resolve; });
+}
+
+actionSheetConfirm.addEventListener('click', () => {
+  actionSheetOverlay.classList.remove('visible');
+  if (actionSheetResolve) actionSheetResolve(true);
+  actionSheetResolve = null;
+});
+actionSheetCancel.addEventListener('click', () => {
+  actionSheetOverlay.classList.remove('visible');
+  if (actionSheetResolve) actionSheetResolve(false);
+  actionSheetResolve = null;
+});
+actionSheetOverlay.addEventListener('click', (e) => {
+  if (e.target === actionSheetOverlay) {
+    actionSheetOverlay.classList.remove('visible');
+    if (actionSheetResolve) actionSheetResolve(false);
+    actionSheetResolve = null;
+  }
+});
 
 // ── Helpers ───────────────────────────────────────────────────
 function escHtml(str) {
