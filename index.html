@@ -11,12 +11,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Receipt Capture</title>
-  <!-- OpenCV.js for auto-crop: ~8 MB, loaded async, cached by SW after first load -->
-  <script>var Module={onRuntimeInitialized:function(){window.cvReady=true;}};</script>
-  <script async src="https://docs.opencv.org/4.9.0/opencv.js"></script>
-  <!-- jscanify v1.4.0 (MIT) — document boundary detection on top of OpenCV.js -->
-  <script>/*! jscanify v1.4.0 | (c) ColonelParrot and other contributors | MIT License */
-  (function(global,factory){typeof exports==="object"&&typeof module!=="undefined"?module.exports=factory():typeof define==="function"&&define.amd?define(factory):(global.jscanify=factory())})(this,function(){"use strict";function distance(p1,p2){return Math.hypot(p1.x-p2.x,p1.y-p2.y)}class jscanify{constructor(){}findPaperContour(img){const imgGray=new cv.Mat();cv.Canny(img,imgGray,50,200);const imgBlur=new cv.Mat();cv.GaussianBlur(imgGray,imgBlur,new cv.Size(3,3),0,0,cv.BORDER_DEFAULT);const imgThresh=new cv.Mat();cv.threshold(imgBlur,imgThresh,0,255,cv.THRESH_OTSU);let contours=new cv.MatVector();let hierarchy=new cv.Mat();cv.findContours(imgThresh,contours,hierarchy,cv.RETR_CCOMP,cv.CHAIN_APPROX_SIMPLE);let maxArea=0;let maxContourIndex=-1;for(let i=0;i<contours.size();++i){let contourArea=cv.contourArea(contours.get(i));if(contourArea>maxArea){maxArea=contourArea;maxContourIndex=i}}const maxContour=maxContourIndex>=0?contours.get(maxContourIndex):null;imgGray.delete();imgBlur.delete();imgThresh.delete();contours.delete();hierarchy.delete();return maxContour}extractPaper(image,resultWidth,resultHeight,cornerPoints){const canvas=document.createElement("canvas");const img=cv.imread(image);const maxContour=cornerPoints?null:this.findPaperContour(img);if(maxContour==null&&cornerPoints===undefined){return null}const{topLeftCorner,topRightCorner,bottomLeftCorner,bottomRightCorner}=cornerPoints||this.getCornerPoints(maxContour,img);let warpedDst=new cv.Mat();let dsize=new cv.Size(resultWidth,resultHeight);let srcTri=cv.matFromArray(4,1,cv.CV_32FC2,[topLeftCorner.x,topLeftCorner.y,topRightCorner.x,topRightCorner.y,bottomLeftCorner.x,bottomLeftCorner.y,bottomRightCorner.x,bottomRightCorner.y]);let dstTri=cv.matFromArray(4,1,cv.CV_32FC2,[0,0,resultWidth,0,0,resultHeight,resultWidth,resultHeight]);let M=cv.getPerspectiveTransform(srcTri,dstTri);cv.warpPerspective(img,warpedDst,M,dsize,cv.INTER_LINEAR,cv.BORDER_CONSTANT,new cv.Scalar());cv.imshow(canvas,warpedDst);img.delete();warpedDst.delete();return canvas}getCornerPoints(contour){let rect=cv.minAreaRect(contour);const center=rect.center;let topLeftCorner,topRightCorner,bottomLeftCorner,bottomRightCorner;let topLeftCornerDist=0,topRightCornerDist=0,bottomLeftCornerDist=0,bottomRightCornerDist=0;for(let i=0;i<contour.data32S.length;i+=2){const point={x:contour.data32S[i],y:contour.data32S[i+1]};const dist=distance(point,center);if(point.x<center.x&&point.y<center.y){if(dist>topLeftCornerDist){topLeftCorner=point;topLeftCornerDist=dist}}else if(point.x>center.x&&point.y<center.y){if(dist>topRightCornerDist){topRightCorner=point;topRightCornerDist=dist}}else if(point.x<center.x&&point.y>center.y){if(dist>bottomLeftCornerDist){bottomLeftCorner=point;bottomLeftCornerDist=dist}}else if(point.x>center.x&&point.y>center.y){if(dist>bottomRightCornerDist){bottomRightCorner=point;bottomRightCornerDist=dist}}}return{topLeftCorner,topRightCorner,bottomLeftCorner,bottomRightCorner}}}return jscanify});</script>
+  <!-- Scanbot Web SDK — document detection -->
+  <script src="https://cdn.jsdelivr.net/npm/scanbot-web-sdk@7.2.0/bundle/ScanbotSDK.ui2.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -104,6 +100,19 @@
       text-align: center;
       font-variant-numeric: tabular-nums;
     }
+
+    /* ── Refresh button ── */
+    #refresh-btn {
+      background: none; border: none;
+      color: var(--blue); cursor: pointer;
+      padding: 4px; margin-right: 6px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 6px;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity .15s;
+    }
+    #refresh-btn:active { opacity: .6; }
+    #refresh-btn svg { width: 19px; height: 19px; }
 
     /* ── Panels ── */
     .panel { display: none; flex: 1; overflow: hidden; flex-direction: column; min-height: 0; }
@@ -445,8 +454,15 @@
   <!-- Header -->
   <header>
     <h1>Receipts</h1>
-    <span id="app-version" style="font-size:10px;color:var(--text-muted);margin-right:8px">v6</span>
-    <span id="receipt-count">0</span>
+    <div style="display:flex;align-items:center;gap:4px;margin-left:auto">
+      <button id="refresh-btn" aria-label="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+          <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+        </svg>
+      </button>
+      <span id="receipt-count">0</span>
+    </div>
   </header>
 
   <!-- Camera Panel -->
@@ -660,11 +676,11 @@ document.getElementById('capture-btn').addEventListener('click', async () => {
   nameInput.value = defaultReceiptName();
   cropToggle.style.display = 'none';
   cropStatus.className = '';
-  cropStatus.textContent = window.cvReady ? 'Detecting receipt…' : '';
+  cropStatus.textContent = scanbotSdk ? 'Detecting receipt…' : '';
   previewModal.classList.add('visible');
 
-  // Run auto-crop if OpenCV is ready
-  if (window.cvReady) {
+  // Run auto-crop if Scanbot SDK is ready
+  if (scanbotSdk) {
     const cropped = await detectAndCrop(captureCanvas);
     if (cropped) {
       pendingCroppedURL = cropped;
@@ -832,185 +848,53 @@ function escHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ── Auto-crop: Hough Lines (primary) + contour fallback ───────
-// Hough Lines finds the dominant straight edges in the image and computes
-// their intersections as corners — handles faint/partial edges better than
-// pure contour detection, which requires a closed, high-contrast boundary.
+// ── Scanbot SDK — document detection ──────────────────────────
+let scanbotSdk = null;
 
-// Return the intersection point of two infinite lines given as [x1,y1,x2,y2].
-function _lineIntersect(a, b) {
-  const [x1, y1, x2, y2] = a;
-  const [x3, y3, x4, y4] = b;
-  const d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
-  if (Math.abs(d) < 1e-9) return null; // parallel
-  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / d;
-  return { x: x1 + t * (x2 - x1), y: y1 + t * (y2 - y1) };
-}
-
-// Extend a detected line segment to span the full image dimension so that
-// intersections land even when segments don't quite reach the corner.
-function _extendLine(l, isHoriz, W, H) {
-  if (isHoriz) {
-    if (l.x1 === l.x2) return [0, l.y1, W, l.y1];
-    const s = (l.y2 - l.y1) / (l.x2 - l.x1);
-    const y0 = l.y1 - s * l.x1;
-    return [0, y0, W, y0 + s * W];
-  } else {
-    if (l.y1 === l.y2) return [l.x1, 0, l.x1, H];
-    const s = (l.x2 - l.x1) / (l.y2 - l.y1);
-    const x0 = l.x1 - s * l.y1;
-    return [x0, 0, x0 + s * H, H];
-  }
-}
-
-// Warp canvas using the four detected corners via jscanify's perspective warp.
-function _warpCorners(canvas, corners) {
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  const outW = Math.round(Math.max(
-    dist(corners.topRightCorner,    corners.topLeftCorner),
-    dist(corners.bottomRightCorner, corners.bottomLeftCorner)));
-  const outH = Math.round(Math.max(
-    dist(corners.bottomLeftCorner,  corners.topLeftCorner),
-    dist(corners.bottomRightCorner, corners.topRightCorner)));
-  if (outW < 50 || outH < 50) return null;
-  const out = new jscanify().extractPaper(canvas, outW, outH, corners);
-  return out ? out.toDataURL('image/jpeg', 0.92) : null;
-}
-
-// PRIMARY: Probabilistic Hough Lines.
-// Finds the best top/bottom/left/right edge lines, then intersects them.
-function _detectHough(canvas) {
-  const W = canvas.width, H = canvas.height;
-  let src, gray, blurred, edges, lines;
+async function initScanbot() {
   try {
-    src     = cv.imread(canvas);
-    gray    = new cv.Mat();
-    blurred = new cv.Mat();
-    edges   = new cv.Mat();
-    lines   = new cv.Mat();
-
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    // Bilateral filter: smooths noise while preserving sharp edges
-    cv.bilateralFilter(gray, blurred, 9, 75, 75, cv.BORDER_DEFAULT);
-    cv.Canny(blurred, edges, 30, 90);
-
-    // minLineLength = 10% of shorter side; maxLineGap = 20px; threshold = 60 votes
-    const minLen = Math.min(W, H) * 0.10;
-    cv.HoughLinesP(edges, lines, 1, Math.PI / 180, 60, minLen, 20);
-    if (lines.rows === 0) return null;
-
-    const hLines = [], vLines = [];
-    for (let i = 0; i < lines.rows; i++) {
-      const x1 = lines.data32S[i * 4],     y1 = lines.data32S[i * 4 + 1];
-      const x2 = lines.data32S[i * 4 + 2], y2 = lines.data32S[i * 4 + 3];
-      const angle = Math.abs(Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI);
-      const len   = Math.hypot(x2 - x1, y2 - y1);
-      if (len < minLen) continue;
-      if (angle < 20 || angle > 160)         hLines.push({ x1, y1, x2, y2, mid: (y1 + y2) / 2 });
-      else if (angle > 70 && angle < 110)    vLines.push({ x1, y1, x2, y2, mid: (x1 + x2) / 2 });
-    }
-    if (hLines.length < 2 || vLines.length < 2) return null;
-
-    // Split into top/bottom and left/right halves
-    const topLines   = hLines.filter(l => l.mid <  H / 2);
-    const botLines   = hLines.filter(l => l.mid >= H / 2);
-    const leftLines  = vLines.filter(l => l.mid <  W / 2);
-    const rightLines = vLines.filter(l => l.mid >= W / 2);
-    if (!topLines.length || !botLines.length || !leftLines.length || !rightLines.length) return null;
-
-    // Pick the outermost line from each cluster
-    const topLine   = topLines.reduce( (a, b) => a.mid < b.mid ? a : b);
-    const botLine   = botLines.reduce( (a, b) => a.mid > b.mid ? a : b);
-    const leftLine  = leftLines.reduce((a, b) => a.mid < b.mid ? a : b);
-    const rightLine = rightLines.reduce((a, b) => a.mid > b.mid ? a : b);
-
-    const top   = _extendLine(topLine,   true,  W, H);
-    const bot   = _extendLine(botLine,   true,  W, H);
-    const left  = _extendLine(leftLine,  false, W, H);
-    const right = _extendLine(rightLine, false, W, H);
-
-    const tl = _lineIntersect(top, left);
-    const tr = _lineIntersect(top, right);
-    const bl = _lineIntersect(bot, left);
-    const br = _lineIntersect(bot, right);
-    if (!tl || !tr || !bl || !br) return null;
-
-    // Reject if any corner is more than 15% outside the image
-    const margin = Math.min(W, H) * 0.15;
-    for (const p of [tl, tr, bl, br]) {
-      if (p.x < -margin || p.x > W + margin || p.y < -margin || p.y > H + margin) return null;
-    }
-
-    // Reject if detected quad covers less than 15% of the image
-    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
-    const corners = {
-      topLeftCorner:     { x: clamp(tl.x, 0, W), y: clamp(tl.y, 0, H) },
-      topRightCorner:    { x: clamp(tr.x, 0, W), y: clamp(tr.y, 0, H) },
-      bottomLeftCorner:  { x: clamp(bl.x, 0, W), y: clamp(bl.y, 0, H) },
-      bottomRightCorner: { x: clamp(br.x, 0, W), y: clamp(br.y, 0, H) },
-    };
-    const { topLeftCorner: c_tl, topRightCorner: c_tr,
-            bottomLeftCorner: c_bl, bottomRightCorner: c_br } = corners;
-    const quadArea =
-      0.5 * Math.abs((c_tr.x - c_tl.x) * (c_bl.y - c_tl.y) - (c_bl.x - c_tl.x) * (c_tr.y - c_tl.y)) +
-      0.5 * Math.abs((c_br.x - c_tr.x) * (c_bl.y - c_tr.y) - (c_bl.x - c_tr.x) * (c_br.y - c_tr.y));
-    if (quadArea < W * H * 0.15) return null;
-
-    return _warpCorners(canvas, corners);
-  } catch (e) {
-    console.error('Hough detection error:', e);
-    return null;
-  } finally {
-    src     && src.delete();
-    gray    && gray.delete();
-    blurred && blurred.delete();
-    edges   && edges.delete();
-    lines   && lines.delete();
-  }
-}
-
-// FALLBACK: contour-based (original jscanify approach).
-// Works well when the document has a strong closed contour against the background.
-function _detectContour(canvas) {
-  try {
-    const scanner = new jscanify();
-    const img     = cv.imread(canvas);
-    const contour = scanner.findPaperContour(img);
-    img.delete();
-    if (!contour) return null;
-
-    const { topLeftCorner: tl, topRightCorner: tr,
-            bottomLeftCorner: bl, bottomRightCorner: br } = scanner.getCornerPoints(contour);
-    contour.delete();
-    if (!tl || !tr || !bl || !br) return null;
-
-    // Expand corners 2% outward so edge-detection error never clips text
-    const cx  = (tl.x + tr.x + bl.x + br.x) / 4;
-    const cy  = (tl.y + tr.y + bl.y + br.y) / 4;
-    const pad = Math.hypot(br.x - tl.x, br.y - tl.y) * 0.02;
-    const expand = p => {
-      const dx = p.x - cx, dy = p.y - cy, len = Math.hypot(dx, dy) || 1;
-      return { x: Math.round(p.x + dx / len * pad), y: Math.round(p.y + dy / len * pad) };
-    };
-    return _warpCorners(canvas, {
-      topLeftCorner:     expand(tl),
-      topRightCorner:    expand(tr),
-      bottomLeftCorner:  expand(bl),
-      bottomRightCorner: expand(br),
+    scanbotSdk = await ScanbotSDK.initialize({
+      licenseKey: '',
+      enginePath: 'https://cdn.jsdelivr.net/npm/scanbot-web-sdk@7.2.0/bundle/bin/complete/'
     });
   } catch (e) {
-    console.error('Contour detection error:', e);
+    console.warn('Scanbot SDK unavailable:', e);
+    scanbotSdk = null;
+  }
+}
+
+async function detectAndCrop(canvas) {
+  if (!scanbotSdk) return null;
+  try {
+    // Load canvas into an Image for the detector
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
+
+    const result = await scanbotSdk.detectDocument(img, { minScore: 60 });
+    if (!result?.polygon || !result.status?.startsWith('OK')) return null;
+
+    // Get image as ArrayBuffer for perspective correction
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.88));
+    const buffer = await blob.arrayBuffer();
+    const croppedBuffer = await scanbotSdk.cropAndRotateImageCcw(buffer, result.polygon, 0);
+
+    // Convert back to data URL for storage
+    return await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result);
+      reader.onerror = rej;
+      reader.readAsDataURL(new Blob([croppedBuffer], { type: 'image/jpeg' }));
+    });
+  } catch (e) {
+    console.error('Scanbot detection error:', e);
     return null;
   }
 }
 
-function detectAndCrop(canvas) {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      resolve(_detectHough(canvas) ?? _detectContour(canvas));
-    }, 60);
-  });
-}
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  location.reload();
+});
 
 // ── Service Worker ────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
@@ -1022,6 +906,7 @@ if ('serviceWorker' in navigator) {
 // ── Init ──────────────────────────────────────────────────────
 (async () => {
   db = await openDB();
+  await initScanbot();
   await refreshGallery();
   startCamera();
   requestPersistentStorage();
