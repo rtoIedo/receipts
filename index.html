@@ -129,7 +129,7 @@
       -webkit-backdrop-filter: saturate(180%) blur(20px);
       backdrop-filter: saturate(180%) blur(20px);
       border-top: 0.5px solid var(--sep);
-      height: calc(49px + var(--safe-bottom));
+      height: calc(56px + var(--safe-bottom));
       padding-bottom: var(--safe-bottom);
       flex-shrink: 0;
     }
@@ -141,7 +141,7 @@
       background: none;
       border: none;
       color: var(--text-muted);
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 400;
       cursor: pointer;
       display: flex;
@@ -154,7 +154,7 @@
       letter-spacing: 0.1px;
       transition: color 0.1s;
     }
-    nav button svg { width: 26px; height: 26px; }
+    nav button svg { width: 32px; height: 32px; }
     nav button.active { color: var(--blue); font-weight: 500; }
     nav button .icon-filled { display: none; }
     nav button .icon-outline { display: block; }
@@ -384,18 +384,16 @@
     @media (prefers-color-scheme: dark) {
       #detail-toolbar { background: rgba(28, 28, 30, 0.88); }
     }
-    .detail-back-btn {
+    #close-detail-btn {
       background: none; border: none;
       color: var(--blue); cursor: pointer;
-      font-size: 17px; font-family: inherit;
-      display: flex; align-items: center; gap: 4px;
-      padding: 4px 8px 4px 0;
+      font-size: 17px; font-weight: 600; font-family: inherit;
+      padding: 4px 8px;
       -webkit-tap-highlight-color: transparent;
       transition: opacity .12s;
       flex-shrink: 0;
     }
-    .detail-back-btn:active { opacity: .5; }
-    .detail-back-btn svg { flex-shrink: 0; }
+    #close-detail-btn:active { opacity: .5; }
     #detail-name {
       font-size: 15px; font-weight: 600; flex: 1;
       padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -593,10 +591,7 @@
 <div id="detail-modal" role="dialog" aria-modal="true" aria-label="Receipt detail">
   <div class="detail-drag-wrap">
     <div id="detail-toolbar">
-      <button class="detail-back-btn" id="close-detail-btn">
-        <svg width="12" height="20" viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2L2 10l8 8"/></svg>
-        Gallery
-      </button>
+      <button id="close-detail-btn">Done</button>
       <span id="detail-name"></span>
       <button class="detail-action-btn" id="download-btn">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
