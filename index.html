@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Receipt Capture</title>
   <!-- Scanbot Web SDK — document detection -->
-  <script src="https://cdn.jsdelivr.net/npm/scanbot-web-sdk@7.2.0/bundle/ScanbotSDK.ui2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/scanbot-web-sdk@8.0.1/bundle/ScanbotSDK.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -855,7 +855,7 @@ async function initScanbot() {
   try {
     scanbotSdk = await ScanbotSDK.initialize({
       licenseKey: '',
-      enginePath: 'https://cdn.jsdelivr.net/npm/scanbot-web-sdk@7.2.0/bundle/bin/complete/'
+      enginePath: 'https://cdn.jsdelivr.net/npm/scanbot-web-sdk@8.0.1/bundle/bin/complete/'
     });
   } catch (e) {
     console.warn('Scanbot SDK unavailable:', e);
@@ -866,18 +866,15 @@ async function initScanbot() {
 async function detectAndCrop(canvas) {
   if (!scanbotSdk) return null;
   try {
-    // Load canvas into an Image for the detector
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-    const img = new Image();
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
-
-    const result = await scanbotSdk.detectDocument(img, { minScore: 60 });
-    if (!result?.polygon || !result.status?.startsWith('OK')) return null;
-
-    // Get image as ArrayBuffer for perspective correction
+    // v8: detectDocument takes an ArrayBuffer directly
     const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.88));
     const buffer = await blob.arrayBuffer();
-    const croppedBuffer = await scanbotSdk.cropAndRotateImageCcw(buffer, result.polygon, 0);
+
+    const result = await scanbotSdk.detectDocument(buffer);
+    if (result.status !== 'OK' || !result.pointsNormalized) return null;
+
+    // v8: imageCrop replaces cropAndRotateImageCcw
+    const croppedBuffer = await scanbotSdk.imageCrop(buffer, result.pointsNormalized);
 
     // Convert back to data URL for storage
     return await new Promise((res, rej) => {
