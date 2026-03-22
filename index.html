@@ -156,82 +156,20 @@
     /* ── Camera Panel ── */
     #camera-panel { position: relative; background: #000; }
 
-    #video-container {
-      position: relative;
+    #scanner-container {
       flex: 1;
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    #video { width: 100%; height: 100%; object-fit: cover; }
-
-    /* Viewfinder corners */
-    #viewfinder { position: absolute; inset: 0; pointer-events: none; }
-    .vf-corner {
-      position: absolute;
-      width: 22px; height: 22px;
-      border-color: rgba(255,255,255,.9);
-      border-style: solid;
-    }
-    .vf-corner.tl { top: 14%; left: 8%; border-width: 2.5px 0 0 2.5px; border-radius: 3px 0 0 0; }
-    .vf-corner.tr { top: 14%; right: 8%; border-width: 2.5px 2.5px 0 0; border-radius: 0 3px 0 0; }
-    .vf-corner.bl { bottom: 14%; left: 8%; border-width: 0 0 2.5px 2.5px; border-radius: 0 0 0 3px; }
-    .vf-corner.br { bottom: 14%; right: 8%; border-width: 0 2.5px 2.5px 0; border-radius: 0 0 3px 0; }
-
-    /* Flash */
-    #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .05s; }
-    #flash.flash { opacity: 1; }
-
-    /* Camera controls bar */
-    #camera-controls {
-      background: rgba(0,0,0,.6);
-      -webkit-backdrop-filter: blur(10px);
-      backdrop-filter: blur(10px);
-      padding: 20px 40px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-    }
-
-    /* iOS-style shutter button */
-    #capture-btn {
-      width: 72px; height: 72px;
-      border-radius: 50%;
-      border: 3px solid #fff;
-      background: transparent;
-      cursor: pointer;
       position: relative;
-      transition: transform .1s, opacity .1s;
-      -webkit-tap-highlight-color: transparent;
     }
-    #capture-btn:active { transform: scale(.91); opacity: .8; }
-    #capture-btn::after {
-      content: '';
-      position: absolute;
-      inset: 5px;
-      border-radius: 50%;
-      background: #fff;
-    }
-
-    #flip-btn {
-      width: 40px; height: 40px;
-      border-radius: 50%;
-      border: none;
-      background: rgba(255,255,255,.18);
-      color: #fff;
-      font-size: 18px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .ctrl-placeholder { width: 40px; }
 
     /* No-camera */
     #no-camera {
-      display: none; flex: 1; align-items: center; justify-content: center;
+      display: none;
+      position: absolute; inset: 0;
+      background: var(--bg);
+      align-items: center; justify-content: center;
       flex-direction: column; gap: 12px; text-align: center; padding: 32px 24px;
+      z-index: 10;
     }
     #no-camera.visible { display: flex; }
     #no-camera .icon { font-size: 52px; }
@@ -467,25 +405,11 @@
 
   <!-- Camera Panel -->
   <div id="camera-panel" class="panel active">
-    <div id="video-container">
-      <video id="video" autoplay playsinline muted></video>
-      <div id="viewfinder">
-        <div class="vf-corner tl"></div>
-        <div class="vf-corner tr"></div>
-        <div class="vf-corner bl"></div>
-        <div class="vf-corner br"></div>
-      </div>
-      <div id="flash"></div>
-    </div>
+    <div id="scanner-container"></div>
     <div id="no-camera">
       <div class="icon">📷</div>
       <p>Camera access is required.<br>Please allow camera access and try again.</p>
       <button id="retry-camera">Allow Camera</button>
-    </div>
-    <div id="camera-controls">
-      <div class="ctrl-placeholder"></div>
-      <button id="capture-btn" aria-label="Capture receipt"></button>
-      <button id="flip-btn" aria-label="Flip camera">🔄</button>
     </div>
   </div>
 
@@ -553,7 +477,6 @@
   <div id="detail-meta" id="detail-meta"></div>
 </div>
 
-<canvas id="capture-canvas"></canvas>
 
 <script>
 // ── IndexedDB ──────────────────────────────────────────────────
@@ -606,39 +529,112 @@ async function dbDelete(id) {
   });
 }
 
-// ── Camera ────────────────────────────────────────────────────
-const video = document.getElementById('video');
-const flash = document.getElementById('flash');
+// ── Scanner ───────────────────────────────────────────────────
 const noCamera = document.getElementById('no-camera');
-const captureCanvas = document.getElementById('capture-canvas');
-const ctx = captureCanvas.getContext('2d');
 
-let facingMode = 'environment';
-let stream = null;
+let scanner = null;
 
-async function startCamera() {
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+async function initScanner() {
+  if (scanner) { await scanner.dispose(); scanner = null; }
   noCamera.classList.remove('visible');
-  video.style.display = 'block';
+
+  if (!scanbotSdk) {
+    noCamera.classList.add('visible');
+    return;
+  }
+
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 2560 } },
-      audio: false
+    scanner = await scanbotSdk.createDocumentScanner({
+      containerId: 'scanner-container',
+      autoCaptureEnabled: true,
+      autoCaptureSensitivity: 0.66,
+      autoCaptureDelay: 1000,
+      mirrored: false,
+      style: {
+        outline: {
+          polygon: {
+            strokeCapturing: '#00E676',
+            strokeSearching: '#FFD740',
+            fillCapturing: 'rgba(0,230,118,0.12)',
+            fillSearching: 'transparent',
+            strokeWidthCapturing: 3,
+            strokeWidthSearching: 2,
+          },
+          label: {
+            position: 'absolute',
+            bottom: '12%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            color: 'white',
+            fontSize: '14px',
+            padding: '6px 16px',
+            borderRadius: '20px',
+            whiteSpace: 'nowrap',
+          }
+        },
+        captureButton: { color: 'white', visible: true }
+      },
+      text: {
+        hint: {
+          NOT_ACQUIRED: 'Searching for document…',
+          OK: 'Hold still…',
+          OK_BUT_TOO_SMALL: 'Move closer',
+          OK_BUT_BAD_ANGLES: 'Reduce angle',
+          OK_BUT_BAD_ASPECT_RATIO: 'Adjust position',
+          ERROR_NOTHING_DETECTED: 'No document found',
+          ERROR_PARTIALLY_VISIBLE: 'Document partially visible',
+          ERROR_TOO_DARK: 'Too dark — improve lighting',
+        }
+      },
+      onDocumentDetected: async (response) => {
+        if (scanner) scanner.disableAutoCapture();
+
+        const toDataURL = async (image) => {
+          if (!image) return null;
+          const bytes = await image.toJpeg(88);
+          const blob = new Blob([bytes], { type: 'image/jpeg' });
+          return new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = () => res(reader.result);
+            reader.onerror = rej;
+            reader.readAsDataURL(blob);
+          });
+        };
+
+        pendingOriginalURL = await toDataURL(response.originalImage);
+        pendingCroppedURL = await toDataURL(response.result?.croppedImage);
+        pendingDataURL = pendingCroppedURL || pendingOriginalURL;
+
+        previewImg.src = pendingDataURL;
+        nameInput.value = defaultReceiptName();
+
+        if (pendingCroppedURL) {
+          cropStatus.textContent = '✓ Document detected';
+          cropStatus.className = 'found';
+          cropToggle.style.display = 'flex';
+          useCropBtn.classList.add('active');
+          useOrigBtn.classList.remove('active');
+        } else {
+          cropStatus.textContent = 'Document not detected — saving full photo';
+          cropStatus.className = '';
+          cropToggle.style.display = 'none';
+        }
+
+        previewModal.classList.add('visible');
+      },
+      onError: (e) => {
+        console.error('Scanner error:', e);
+        noCamera.classList.add('visible');
+      }
     });
-    video.srcObject = stream;
-  } catch (err) {
-    console.error('Camera error:', err);
-    video.style.display = 'none';
+  } catch (e) {
+    console.error('Scanner init error:', e);
     noCamera.classList.add('visible');
   }
 }
 
-document.getElementById('flip-btn').addEventListener('click', () => {
-  facingMode = facingMode === 'environment' ? 'user' : 'environment';
-  startCamera();
-});
-
-document.getElementById('retry-camera').addEventListener('click', startCamera);
+document.getElementById('retry-camera').addEventListener('click', initScanner);
 
 // ── Capture ───────────────────────────────────────────────────
 const previewModal = document.getElementById('preview-modal');
@@ -653,50 +649,6 @@ let pendingDataURL = null;     // what will be saved
 let pendingOriginalURL = null;
 let pendingCroppedURL = null;
 
-document.getElementById('capture-btn').addEventListener('click', async () => {
-  if (!stream) return;
-
-  // Flash
-  flash.classList.add('flash');
-  setTimeout(() => flash.classList.remove('flash'), 150);
-
-  // Draw frame to canvas
-  const { videoWidth: w, videoHeight: h } = video;
-  captureCanvas.width = w;
-  captureCanvas.height = h;
-  ctx.drawImage(video, 0, 0, w, h);
-
-  const originalURL = captureCanvas.toDataURL('image/jpeg', 0.88);
-  pendingOriginalURL = originalURL;
-  pendingCroppedURL = null;
-  pendingDataURL = originalURL;
-
-  // Show preview immediately
-  previewImg.src = originalURL;
-  nameInput.value = defaultReceiptName();
-  cropToggle.style.display = 'none';
-  cropStatus.className = '';
-  cropStatus.textContent = scanbotSdk ? 'Detecting receipt…' : '';
-  previewModal.classList.add('visible');
-
-  // Run auto-crop if Scanbot SDK is ready
-  if (scanbotSdk) {
-    const cropped = await detectAndCrop(captureCanvas);
-    if (cropped) {
-      pendingCroppedURL = cropped;
-      pendingDataURL = cropped;
-      previewImg.src = cropped;
-      cropStatus.textContent = '✓ Receipt detected';
-      cropStatus.className = 'found';
-      cropToggle.style.display = 'flex';
-      useCropBtn.classList.add('active');
-      useOrigBtn.classList.remove('active');
-    } else {
-      cropStatus.textContent = 'Receipt not detected — saving full photo';
-      cropStatus.className = '';
-    }
-  }
-});
 
 useCropBtn.addEventListener('click', () => {
   if (!pendingCroppedURL) return;
@@ -729,6 +681,7 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   await dbPut({ id, name, ts, dataURL: pendingDataURL, sizeBytes });
   pendingDataURL = null;
   previewModal.classList.remove('visible');
+  if (scanner) scanner.enableAutoCapture();
   await refreshGallery();
   requestPersistentStorage();
 });
@@ -738,6 +691,7 @@ document.getElementById('discard-btn').addEventListener('click', () => {
   pendingOriginalURL = null;
   pendingCroppedURL = null;
   previewModal.classList.remove('visible');
+  if (scanner) scanner.enableAutoCapture();
 });
 
 // ── Gallery ───────────────────────────────────────────────────
@@ -831,8 +785,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById(btn.dataset.panel).classList.add('active');
-    if (btn.dataset.panel === 'gallery-panel') refreshGallery();
-    if (btn.dataset.panel === 'camera-panel' && !stream) startCamera();
+    if (btn.dataset.panel === 'gallery-panel') {
+      if (scanner) { scanner.dispose(); scanner = null; }
+      refreshGallery();
+    }
+    if (btn.dataset.panel === 'camera-panel') initScanner();
   });
 });
 
@@ -863,31 +820,6 @@ async function initScanbot() {
   }
 }
 
-async function detectAndCrop(canvas) {
-  if (!scanbotSdk) return null;
-  try {
-    // v8: detectDocument takes an ArrayBuffer directly
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.88));
-    const buffer = await blob.arrayBuffer();
-
-    const result = await scanbotSdk.detectDocument(buffer);
-    if (result.status !== 'OK' || !result.pointsNormalized) return null;
-
-    // v8: imageCrop replaces cropAndRotateImageCcw
-    const croppedBuffer = await scanbotSdk.imageCrop(buffer, result.pointsNormalized);
-
-    // Convert back to data URL for storage
-    return await new Promise((res, rej) => {
-      const reader = new FileReader();
-      reader.onload = () => res(reader.result);
-      reader.onerror = rej;
-      reader.readAsDataURL(new Blob([croppedBuffer], { type: 'image/jpeg' }));
-    });
-  } catch (e) {
-    console.error('Scanbot detection error:', e);
-    return null;
-  }
-}
 
 document.getElementById('refresh-btn').addEventListener('click', () => {
   location.reload();
@@ -905,7 +837,7 @@ if ('serviceWorker' in navigator) {
   db = await openDB();
   await initScanbot();
   await refreshGallery();
-  startCamera();
+  initScanner();
   requestPersistentStorage();
 })();
 </script>
